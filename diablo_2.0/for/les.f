@@ -12,23 +12,26 @@ C if for the subgrid scalar dissipation
       include 'header'
       include 'header_les'
 
-      integer i,j,k,l,m,ij
+      integer i,j,k,l,m,ij,N
 
       real*8 S1_mean(0:NY+1)
       real*8 NU_T_mean(0:NY+1)
+      real*8 KAPPA_T_mean(0:NY+1)
       real*8 EPS_SGS1_MEAN(0:NY+1)
       real*8 U3_bar(0:NY+1)
       real*8 U1_bar(0:NY+1)
+! parameters for subgrid scale Prandtl number from Anderson 2009 Table
+! 3, bottom line
+      real*8 Gprs,Rithprs,Nprs
+      parameter(Gprs=1.0d0)
+      parameter(Rithprs=0.94d0)
+      parameter(Nprs=1.5d0)
  
       real*8 C_SMAG
       parameter (C_SMAG=0.13d0)
       real*8 DELTA_Y(0:NY+1),DELTA_YF(0:NY+1) 
       real*8 alpha_sgs,beta_sgs
       real*8 denominator_sum
-
-! Array for writing HDF5 files
-      real*8 Diag(1:NY)
-      character*20 gname
 
       character*35 FNAME
 
@@ -93,12 +96,9 @@ C Apply Boundary conditions to velocity field
      &     MPI_COMM_Z,ierror)
             CALL MPI_BCAST(U3_bar,NY+2,MPI_DOUBLE_PRECISION,0,
      &     MPI_COMM_Z,ierror)
-
 !        IF (MOD(TIME_STEP,SAVE_STATS_INT).EQ.0) THEN
 !           WRITE(*,*) RANK,GYF(78),U1_bar(78),U3_bar(78) 
 !        END IF
-
-
 ! Convert the velocity to physical space
       call FFT_XZ_TO_PHYSICAL(CU1,U1,0,NY+1)
       call FFT_XZ_TO_PHYSICAL(CU2,U2,0,NY+1)
@@ -225,14 +225,67 @@ C Apply Boundary conditions to velocity field
           END DO
         END DO
       END DO
-
-! Now that we have calculated NU_T, set the value at the ghost cells
+! now calculate KAPPA
+! convert TH to physical space
+      DO N=1,N_TH
+        CS2(:,:,:)=CTH(:,:,:,N)
+        CALL FFT_XZ_TO_PHYSICAL(CS2,S2,0,NY+1)
+        TH(:,:,:,N)=S2(:,:,:)
+      END DO
+! Calculate Rig
+      DO J=2,NY
+        DO K=0,NZP-1
+          DO I=0,NXM
+            Rig(I,K,J)=DY(J)*RI(1)*(TH(I,K,J,1)-TH(I,K,J-1,1))/
+     &          ((U1(I,K,J)-U1(I,K,J-1))**2.0d0+
+     &           (U3(I,K,J)-U3(I,K,J-1))**2.0d0)
+          END DO
+        END DO
+      END DO
+      DO N=2,N_TH
+      DO J=2,NY
+        DO K=0,NZP-1
+          DO I=0,NXM
+            Rig(I,K,J)=Rig(I,K,J)+
+     &     DY(J)*RI(N)*(TH(I,K,J,N)-TH(I,K,J-1,N))/
+     &          ((U1(I,K,J)-U1(I,K,J-1))**2.0d0+
+     &           (U3(I,K,J)-U3(I,K,J-1))**2.0d0)
+          END DO
+        END DO
+      END DO
+      END DO
+! Calculate PRM1_T
+      DO N=1,N_TH
+      DO J=2,NY
+        DO K=0,NZP-1
+          DO I=0,NXM
+           IF (Rig(I,K,J).gt.0.0d0) THEN
+           PRM1_T(I,K,J,N)=Gprs/(1.0d0+(Rig(I,K,J)/Rithprs)**Nprs)
+           IF (PRM1_T(I,K,J,N).lt.0.01d0) THEN
+              PRM1_T(I,K,J,N)=0.01d0
+           END IF
+           ELSE
+           PRM1_T(I,K,J,N)=1.0d0
+           END IF
+          END DO
+        END DO
+      END DO
+      END DO
+! Now that we have calculated NU_T and PRM1_T, set the value at the ghost cells
 ! by sharing with neighboring processes.  This subroutine also sets
 ! the value of NU_T to zero at both walls
       CALL GHOST_LES_MPI
-
+! Now calculate KAPPA_T
+         DO N=1,N_TH
+         do J=1,NY+1
+           do K=0,NZP-1
+             do I=0,NXM
+           KAPPA_T(I,K,J,N)=PRM1_T(I,K,J,N)*NU_T(I,K,J)
+             end do
+           end do
+         end do
+         end do
 ! Convert the stress tensor to Fourier space
-
 
       CALL FFT_XZ_TO_FOURIER(Sij1,CSij1,0,NY+1)
 ! Sij2 is added through an implicit eddy viscosity
@@ -334,6 +387,68 @@ C Apply Boundary conditions to velocity field
           END DO
         END DO
       END DO
+C Add the horizontal diffusive terms using explicit timestepping
+C first convert TH back to Fourier space
+      DO N=1,N_TH
+        S1(:,:,:)=TH(:,:,:,N)
+        CALL FFT_XZ_TO_FOURIER(S1,CS1,0,NY+1)
+        CTH(:,:,:,N)=CS1(:,:,:)
+      END DO
+      DO N=1,N_TH
+        DO J=1,NY+1
+          DO K=0,TNKZ
+            DO I=0,NXP-1
+              CS1(I,K,J)=CIKX(I)*CTH(I,K,J,N)
+            END DO
+          END DO
+        END DO
+        CALL FFT_XZ_TO_PHYSICAL(CS1,S1,0,NY+1)
+         do j=1,NY+1
+           do k=0,NZP-1
+             do i=0,NXM
+               S1(I,K,J)=KAPPA_T(I,K,J,N)*S1(I,K,J)
+             end do
+           end do
+         end do
+         CALL FFT_XZ_TO_FOURIER(S1,CS1,0,NY+1)
+         DO J=JSTART_TH(N),JEND_TH(N)
+           DO K=0,TNKZ
+             DO I=0,NXP-1
+              CFTH(I,K,J,N)=CFTH(I,K,J,N)+CIKX(I)*CS1(I,K,J) 
+             END DO
+           END DO
+         END DO
+
+        DO J=1,NY+1
+          DO K=0,TNKZ
+            DO I=0,NXP-1
+              CS1(I,K,J)=CIKZ(K)*CTH(I,K,J,N)
+            END DO
+          END DO
+        END DO
+        CALL FFT_XZ_TO_PHYSICAL(CS1,S1,0,NY+1)
+         do j=1,NY+1
+           do k=0,NZP-1
+             do i=0,NXM
+               S1(I,K,J)=KAPPA_T(I,K,J,N)*S1(I,K,J)
+             end do
+           end do
+         end do
+         CALL FFT_XZ_TO_FOURIER(S1,CS1,0,NY+1)
+         DO J=JSTART_TH(N),JEND_TH(N)
+           DO K=0,TNKZ
+             DO I=0,NXP-1
+              CFTH(I,K,J,N)=CFTH(I,K,J,N)+CIKZ(K)*CS1(I,K,J)
+             END DO
+           END DO
+         END DO
+        END DO ! end do n
+! convert TH to physical space
+      DO N=1,N_TH
+        CS2(:,:,:)=CTH(:,:,:,N)
+        CALL FFT_XZ_TO_PHYSICAL(CS2,S2,0,NY+1)
+        TH(:,:,:,N)=S2(:,:,:)
+      END DO
 
 ! Periodically, output mean quantities
       IF ((MOD(TIME_STEP,SAVE_STATS_INT).EQ.0).AND.(RK_STEP.EQ.1)) THEN
@@ -341,10 +456,12 @@ C Apply Boundary conditions to velocity field
         do J=0,NY+1
           S1_mean(J)=0.d0
           NU_T_mean(J)=0.d0
+          KAPPA_T_mean(J)=0.d0
           do I=0,NXM
           do K=0,NZP-1
             S1_mean(J)=S1_mean(J)+S1(I,K,J)
             NU_T_mean(J)=NU_T_mean(J)+NU_T(I,K,J)
+            KAPPA_T_mean(J)=KAPPA_T_mean(J)+KAPPA_T(I,K,J,1)
           end do
           end do
         end do
@@ -463,6 +580,9 @@ C Apply Boundary conditions to velocity field
       call mpi_allreduce(mpi_in_place,NU_T_mean,NY+2
      &    ,MPI_DOUBLE_PRECISION,
      &     MPI_SUM,MPI_COMM_Z,ierror)
+      call mpi_allreduce(mpi_in_place,KAPPA_T_mean,NY+2
+     &    ,MPI_DOUBLE_PRECISION,
+     &     MPI_SUM,MPI_COMM_Z,ierror)
       call mpi_allreduce(mpi_in_place,EPS_SGS1_MEAN,NY+2
      &    ,MPI_DOUBLE_PRECISION,
      &     MPI_SUM,MPI_COMM_Z,ierror)
@@ -470,34 +590,10 @@ C Apply Boundary conditions to velocity field
         do j=0,NY+1
           S1_mean(j)=S1_mean(j)/dble(NX*NZ)
           NU_T_mean(j)=NU_T_mean(j)/dble(NX*NZ)
+          KAPPA_T_mean(j)=KAPPA_T_mean(j)/dble(NX*NZ)
           EPS_SGS1_MEAN(j)=EPS_SGS1_MEAN(j)/dble(NX*NZ)
         end do
 
-
-#ifdef HDF5
-      FNAME='mean_les.h5'
-
-      gname='time'
-      call WriteHDF5_real(FNAME,gname,TIME)
-
-      IF (RANKZ.EQ.0) THEN
-
-      gname='gyf'
-      Diag=gyf(1:NY)
-      call WriteStatH5(FNAME,gname,Diag)
-
-      gname='nu_sgs' 
-      Diag=NU_T_mean(1:NY)
-      call WriteStatH5(FNAME,gname,Diag)     
-
-      gname='eps_sgs1' 
-      Diag=EPS_SGS1_MEAN(1:NY)
-      call WriteStatH5(FNAME,gname,Diag)     
-    
-      END IF
- 
-#else
-! Here we aren't using HDF5, so write to text file
       IF (RANKZ.EQ.0) THEN
       IF (USE_MPI) THEN
         FNAME='mean_les'//trim(MPI_IO_NUM)//'.txt'
@@ -505,14 +601,14 @@ C Apply Boundary conditions to velocity field
         FNAME='mean_les.txt'
       END IF
       open(42,file=FNAME,form='formatted',status='unknown')
+
         write(42,*) TIME_STEP,TIME,DELTA_T
         do j=1,NY
           write(42,420) j,GYF(J),
-     &      NU_T_mean(J),EPS_SGS1_MEAN(J)
+     &      NU_T_mean(J),KAPPA_T_MEAN(J),EPS_SGS1_MEAN(J)
         end do
-420     format(I3,' ',2(F30.20,' '))
       END IF
-#endif
+420     format(I3,' ',4(F30.20,' '))
 
       END IF
 
@@ -860,6 +956,74 @@ C For use in the LES model in channel flow (2 periodic directions)
       RETURN
       END
 
+      subroutine tkebudget_chan_les
+! Calculate the componet of th SGS dissipation rate 
+! only includes the terms timestepped implicitly
+      include 'header'
+      include 'header_les'
+
+      character*35 FNAME
+      real*8 epsilon_sgs(NY)
+      integer i,j,k
+
+! Compute the turbulent dissipation rate, epsilon=nu*<du_i/dx_j
+! du_i/dx_j>
+
+      DO J=1,NY
+        DO K=0,NZP-1
+          DO I=0,NXM
+            TEMP(I,K,J)=U1(I,K,J)*
+     &        (  (NU_T(I,K,J+1) * (U1(I,K,J+1) - U1(I,K,J)) / DY(J+1)
+     &         -  NU_T(I,K,J) * (U1(I,K,J)   - U1(I,K,J-1)) / DY(J))
+     &               /DYF(J)  )
+     &           +U3(I,K,J)*
+     &        (  (NU_T(I,K,J+1) * (U3(I,K,J+1) - U3(I,K,J)) / DY(J+1)
+     &        - NU_T(I,K,J) * (U3(I,K,J)   - U3(I,K,J-1)) / DY(J))
+     &              /DYF(J)  )
+     &           +U2(I,K,J)*
+     &     ((0.5d0*(NU_T(I,K,J)+NU_T(I,K,J+1))*(U2(I,K,J+1)-U2(I,K,J))
+     &                                              / DYF(J)
+     &    -0.5d0*(NU_T(I,K,J)+NU_T(I,K,J-1))*(U2(I,K,J)-U2(I,K,J-1))
+     &                                          / DYF(J-1))   /DY(J)  )
+          END DO
+        END DO
+      END DO
+ 
+! Now calculate the horizontal average
+        do j=1,NY
+          epsilon_sgs(j)=0.d0
+          do i=0,NXM
+          do k=0,NZP-1
+            epsilon_sgs(j)=epsilon_sgs(j)+TEMP(I,K,J)
+          end do
+          end do
+        end do
+
+      call mpi_allreduce(mpi_in_place,epsilon_sgs,NY+2
+     &    ,MPI_DOUBLE_PRECISION,
+     &     MPI_SUM,MPI_COMM_Z,ierror)        
+
+      DO J=1,NY
+         epsilon_sgs(J)=epsilon_sgs(J)/dble(NX*NZ)
+      END DO
+
+      IF (RANKZ.EQ.0) THEN
+      IF (USE_MPI) THEN
+        FNAME='tke_les'//trim(MPI_IO_NUM)//'.txt'
+      ELSE
+        FNAME='tke_les.txt'
+      END IF
+      open(46,file=FNAME,form='formatted',status='unknown')
+
+      write(46,*) TIME_STEP,TIME,DELTA_T
+        do j=1,NY
+          write(46,460) j,GYF(J),epsilon_sgs(J)
+        end do
+      END IF
+460     format(I3,' ',2(F30.20,' '))
+
+
+      END
 
 
 

@@ -180,7 +180,150 @@
 
       RETURN
       END
+!
+      SUBROUTINE GHOST_VL2_MPI
+! This subroutine is part of the MPI package for the VL2 advection scheme 
+! we need to share TH(NY-1) points with the grid above (J=0) points 
+! and we need to share (TH(3)) points with the grid below (J=NY+2)
+! in this case
+      INCLUDE 'header'
 
+      INTEGER I,J,K,N
+
+! Define the arrays that will be used for data packing.  This makes the
+! communication between processes more efficient by only requiring one
+! send and recieve.
+! The size of the buffer TH array is 0:NXM,0:NZP-1,N_TH
+      REAL*8 OCPACK(0:NXM,0:NZP-1,N_TH)
+      REAL*8 ICPACK(0:NXM,0:NZP-1,N_TH)
+
+! If we are using more than one processor, then we need to pass data
+
+      IF (NPROCY.gt.1) THEN
+
+! First, Pass data up the chain to higher ranked processes
+
+      IF (RANKY.eq.0) THEN
+! If we are the lowest ranked process, then we don't need to recieve
+! data at the lower ghost cells.
+
+! Pass data up to the next process from NY-2
+      DO N=1,N_TH 
+        DO K=0,NZP-1
+          DO I=0,NXM
+            OCPACK(I,K,N)=TH(I,K,NY-1,N)
+          END DO
+        END DO
+      END DO
+! Now, we have packed the data into a compact array, pass the data up
+        CALL MPI_SEND(OCPACK,(N_TH)*(NXM+1)*(NZP)
+     &               ,MPI_DOUBLE_PRECISION
+     &               ,RANKY+1,37,MPI_COMM_Y,IERROR)
+
+! End if RANK=0
+      ELSE IF (RANKY.LT.NPROCY-1) THEN
+! Here, we are one of the middle processes and we need to pass data
+! up and recieve data from below
+      DO N=1,N_TH
+        DO K=0,NZP-1
+          DO I=0,NXM
+            OCPACK(I,K,N)=TH(I,K,NY-1,N)
+          END DO
+        END DO
+      END DO
+
+! Use MPI_SENDRECV since we need to recieve and send data
+        CALL MPI_SEND(OCPACK,(N_TH)*(NXM+1)*(NZP)
+     &               ,MPI_DOUBLE_PRECISION
+     &               ,RANKY+1,37,MPI_COMM_Y,IERROR)
+
+        CALL MPI_RECV(ICPACK,(N_TH)*(NXM+1)*(NZP)
+     &               ,MPI_DOUBLE_PRECISION
+     &               ,RANKY-1,37,MPI_COMM_Y,STATUS,IERROR)
+! Now, unpack the data that we have recieved
+      DO N=1,N_TH
+        DO K=0,NZP-1
+          DO I=0,NXM
+            TH_M1(I,K,N)=ICPACK(I,K,N)
+          END DO
+        END DO
+      END DO
+
+      ELSE
+! Otherwise, we must be the uppermost process with RANK=NPROCY-1
+! Here, we need to recieve data from below, but don't need to send data up
+        CALL MPI_RECV(ICPACK,(N_TH)*(NXM+1)*(NZP)
+     &               ,MPI_DOUBLE_PRECISION
+     &               ,RANKY-1,37,MPI_COMM_Y,STATUS,IERROR)
+! Unpack the data that we have recieved
+      DO N=1,N_TH
+        DO K=0,NZP-1
+          DO I=0,NXM
+            TH_M1(I,K,N)=ICPACK(I,K,N)
+          END DO
+        END DO
+      END DO
+      END IF
+
+! Now, send data down the chain
+      IF (RANKY.EQ.(NPROCY-1)) THEN
+      DO N=1,N_TH
+        DO K=0,NZP-1
+          DO I=0,NXM
+            OCPACK(I,K,N)=TH(I,K,3,N)
+          END DO
+        END DO
+      END DO
+! Now, we have packed the data into a compact array, pass the data up
+        CALL MPI_SEND(OCPACK,(N_TH)*(NXM+1)*(NZP)
+     &               ,MPI_DOUBLE_PRECISION
+     &               ,RANKY-1,38,MPI_COMM_Y,IERROR)
+      ELSE IF (RANKY.GT.0) THEN
+! Here, we are one of the middle processes and we need to pass data
+! down and recieve data from above us
+      DO N=1,N_TH
+        DO K=0,NZP-1
+          DO I=0,NXM
+            OCPACK(I,K,N)=TH(I,K,3,N)
+          END DO
+        END DO
+      END DO
+
+        CALL MPI_SEND(OCPACK,(N_TH)*(NXM+1)*(NZP)
+     &               ,MPI_DOUBLE_PRECISION
+     &               ,RANKY-1,38,MPI_COMM_Y,IERROR)
+
+        CALL MPI_RECV(ICPACK,(N_TH)*(NXM+1)*(NZP)
+     &               ,MPI_DOUBLE_PRECISION
+     &               ,RANKY+1,38,MPI_COMM_Y,STATUS,IERROR)
+! Now, unpack the data that we have recieved
+      DO N=1,N_TH
+        DO K=0,NZP-1
+          DO I=0,NXM
+            TH_P1(I,K,N)=ICPACK(I,K,N)
+          END DO
+        END DO
+      END DO
+      ELSE
+! Here, we must be the lowest process (RANK=0) and we need to recieve
+! data from above
+        CALL MPI_RECV(ICPACK,(N_TH)*(NXM+1)*(NZP)
+     &               ,MPI_DOUBLE_PRECISION
+     &               ,RANKY+1,38,MPI_COMM_Y,STATUS,IERROR)
+! Unpack the data that we have recieved
+      DO N=1,N_TH
+        DO K=0,NZP-1
+          DO I=0,NXM
+            TH_P1(I,K,N)=ICPACK(I,K,N)
+          END DO
+        END DO
+      END DO
+      END IF
+
+      END IF 
+
+      RETURN
+      END
 
       SUBROUTINE GHOST_LES_MPI
 ! This subroutine is part of the MPI package for the LES subroutine
@@ -197,8 +340,8 @@
 ! The communication will be done in Fourier space, so these arrays should
 ! be complex arrays to match the velocity
 ! The size of the buffer array is 0:NXM,0:NZP-1
-      REAL*8 OCPACK(0:NXM,0:NZP-1)
-      REAL*8 ICPACK(0:NXM,0:NZP-1)
+      REAL*8 OCPACK(0:NXM,0:NZP-1,1+N_TH)
+      REAL*8 ICPACK(0:NXM,0:NZP-1,1+N_TH)
 
 ! If we are using more than one processor, then we need to pass data
 
@@ -209,21 +352,39 @@
       IF (RANKY.eq.0) THEN
 ! If we are the lowest ranked process, then we don't need to recieve
 ! data at the lower ghost cells. Instead, set NU_T=0 at the lower wall
+! ---
+! DAN changed NU_T here (other wise should be zero)
+! This is for the channel configuration with the bottom
+! viewed as 'open' rather than a wall per se
         DO K=0,NZP-1
           DO I=0,NXM
-            NU_T(I,K,1)=0.d0
-            NU_T(I,K,2)=0.d0
+            NU_T(I,K,1)=NU_T(I,K,3)
+            NU_T(I,K,2)=NU_T(I,K,3)
           END DO
         END DO
-
+        DO N=1,N_TH
+        DO K=0,NZP-1
+          DO I=0,NXM
+            PRM1_T(I,K,1,N)=PRM1_T(I,K,3,N)
+            PRM1_T(I,K,2,N)=PRM1_T(I,K,3,N)
+          END DO
+        END DO
+        END DO
 ! Pass data up to the next process from GY(NY)
         DO K=0,NZP-1
           DO I=0,NXM
-            OCPACK(I,K)=NU_T(I,K,NY)
+            OCPACK(I,K,1)=NU_T(I,K,NY)
           END DO
         END DO
+        DO N=1,N_TH
+        DO K=0,NZP-1
+          DO I=0,NXM
+            OCPACK(I,K,1+N)=PRM1_T(I,K,NY,N)
+          END DO
+        END DO
+        END DO
 ! Now, we have packed the data into a compact array, pass the data up
-        CALL MPI_SEND(OCPACK,(NXM+1)*(NZP)
+        CALL MPI_SEND(OCPACK,(1+N_TH)*(NXM+1)*(NZP)
      &               ,MPI_DOUBLE_PRECISION
      &               ,RANKY+1,1,MPI_COMM_Y,IERROR)
 
@@ -233,35 +394,55 @@
 ! up and recieve data from below
         DO K=0,NZP-1
           DO I=0,NXM
-            OCPACK(I,K)=NU_T(I,K,NY)
+            OCPACK(I,K,1)=NU_T(I,K,NY)
           END DO
         END DO
+        DO N=1,N_TH
+        DO K=0,NZP-1
+          DO I=0,NXM
+            OCPACK(I,K,1+N)=PRM1_T(I,K,NY,N)
+          END DO
+        END DO
+        END DO
 ! Use MPI_SENDRECV since we need to recieve and send data
-        CALL MPI_SEND(OCPACK,(NXM+1)*(NZP)
+        CALL MPI_SEND(OCPACK,(1+N_TH)*(NXM+1)*(NZP)
      &               ,MPI_DOUBLE_PRECISION
      &               ,RANKY+1,1,MPI_COMM_Y,IERROR)
 
-        CALL MPI_RECV(ICPACK,(NXM+1)*(NZP)
+        CALL MPI_RECV(ICPACK,(1+N_TH)*(NXM+1)*(NZP)
      &               ,MPI_DOUBLE_PRECISION
      &               ,RANKY-1,1,MPI_COMM_Y,STATUS,IERROR)
 ! Now, unpack the data that we have recieved
         DO K=0,NZP-1
           DO I=0,NXM
-            NU_T(I,K,1)=ICPACK(I,K)
+            NU_T(I,K,1)=ICPACK(I,K,1)
           END DO
         END DO
-
+        DO N=1,N_TH
+        DO K=0,NZP-1
+          DO I=0,NXM
+            PRM1_T(I,K,1,N)=ICPACK(I,K,1+N)
+          END DO
+        END DO
+        END DO
       ELSE
 ! Otherwise, we must be the uppermost process with RANK=NPROCS-1
 ! Here, we need to recieve data from below, but don't need to send data up
-        CALL MPI_RECV(ICPACK,(NXM+1)*(NZP)
+        CALL MPI_RECV(ICPACK,(1+N_TH)*(NXM+1)*(NZP)
      &               ,MPI_DOUBLE_PRECISION
      &               ,RANKY-1,1,MPI_COMM_Y,STATUS,IERROR)
 ! Unpack the data that we have recieved
         DO K=0,NZP-1
           DO I=0,NXM
-            NU_T(I,K,1)=ICPACK(I,K)
+            NU_T(I,K,1)=ICPACK(I,K,1)
           END DO
+        END DO
+        DO N=1,N_TH
+        DO K=0,NZP-1
+          DO I=0,NXM
+            PRM1_T(I,K,1,N)=ICPACK(I,K,1+N)
+          END DO
+        END DO
         END DO
       END IF
       
@@ -277,15 +458,30 @@
             NU_T(I,K,NY+1)=0.d0
           END DO
         END DO
+        DO N=1,N_TH
+        DO K=0,NZP-1
+          DO I=0,NXM
+            PRM1_T(I,K,NY,N)=1.d0
+            PRM1_T(I,K,NY+1,N)=1.d0
+          END DO
+        END DO
+        END DO
 
 ! Now, send data down the chain
         DO K=0,NZP-1
           DO I=0,NXM
-            OCPACK(I,K)=NU_T(I,K,2)
+            OCPACK(I,K,1)=NU_T(I,K,2)
           END DO
         END DO
+        DO N=1,N_TH
+        DO K=0,NZP-1
+          DO I=0,NXM
+            OCPACK(I,K,1+N)=PRM1_T(I,K,2,N)
+          END DO
+        END DO
+        END DO
 ! Now, we have packed the data into a compact array, pass the data up
-        CALL MPI_SEND(OCPACK,(NXM+1)*(NZP)
+        CALL MPI_SEND(OCPACK,(1+N_TH)*(NXM+1)*(NZP)
      &               ,MPI_DOUBLE_PRECISION
      &               ,RANKY-1,3,MPI_COMM_Y,IERROR)
       ELSE IF (RANKY.GT.0) THEN
@@ -293,34 +489,55 @@
 ! down and recieve data from above us
         DO K=0,NZP-1
           DO I=0,NXM
-            OCPACK(I,K)=NU_T(I,K,2)
+            OCPACK(I,K,1)=NU_T(I,K,2)
           END DO
         END DO
+        DO N=1,N_TH
+        DO K=0,NZP-1
+          DO I=0,NXM
+            OCPACK(I,K,1+N)=PRM1_T(I,K,2,N)
+          END DO
+        END DO
+        END DO
 
-        CALL MPI_SEND(OCPACK,(NXM+1)*(NZP)
+        CALL MPI_SEND(OCPACK,(1+N_TH)*(NXM+1)*(NZP)
      &               ,MPI_DOUBLE_PRECISION
      &               ,RANKY-1,3,MPI_COMM_Y,IERROR)
 
-        CALL MPI_RECV(ICPACK,(NXM+1)*(NZP)
+        CALL MPI_RECV(ICPACK,(1+N_TH)*(NXM+1)*(NZP)
      &               ,MPI_DOUBLE_PRECISION
      &               ,RANKY+1,3,MPI_COMM_Y,STATUS,IERROR)
 ! Now, unpack the data that we have recieved
         DO K=0,NZP-1
           DO I=0,NXM
-            NU_T(I,K,NY+1)=ICPACK(I,K)
+            NU_T(I,K,NY+1)=ICPACK(I,K,1)
           END DO
+        END DO
+        DO N=1,N_TH
+        DO K=0,NZP-1
+          DO I=0,NXM
+            PRM1_T(I,K,NY+1,N)=ICPACK(I,K,1+N)
+          END DO
+        END DO
         END DO
       ELSE
 ! Here, we must be the lowest process (RANK=0) and we need to recieve
 ! data from above
-        CALL MPI_RECV(ICPACK,(NXM+1)*(NZP)
+        CALL MPI_RECV(ICPACK,(1+N_TH)*(NXM+1)*(NZP)
      &               ,MPI_DOUBLE_PRECISION
      &               ,RANKY+1,3,MPI_COMM_Y,STATUS,IERROR)
 ! Unpack the data that we have recieved
         DO K=0,NZP-1
           DO I=0,NXM
-            NU_T(I,K,NY+1)=ICPACK(I,K)
+            NU_T(I,K,NY+1)=ICPACK(I,K,1)
           END DO
+        END DO
+        DO N=1,N_TH
+        DO K=0,NZP-1
+          DO I=0,NXM
+            PRM1_T(I,K,NY+1,N)=ICPACK(I,K,1+N)
+          END DO
+        END DO
         END DO
       END IF
 
@@ -329,13 +546,25 @@
 ! top and bottom walls
         DO K=0,NZP-1
           DO I=0,NXM
-            NU_T(I,K,1)=0.d0
-            NU_T(I,K,2)=0.d0
+! DAN changed NU_T here at the bottom two grid cells (other wise should be zero)
+! This is for the channel configuration with the bottom
+! viewed as 'open' rather than a wall per se
+            NU_T(I,K,1)=NU_T(I,K,3)
+            NU_T(I,K,2)=NU_T(I,K,3)
             NU_T(I,K,NY)=0.d0
             NU_T(I,K,NY+1)=0.d0
           END DO
         END DO
-
+        DO N=1,N_TH
+        DO K=0,NZP-1
+          DO I=0,NXM
+            PRM1_T(I,K,1,N)=PRM1_T(I,K,3,N)
+            PRM1_T(I,K,2,N)=PRM1_T(I,K,3,N)
+            PRM1_T(I,K,NY,N)=1.d0
+            PRM1_T(I,K,NY+1,N)=1.d0
+          END DO
+        END DO
+        END DO
       END IF
 
       RETURN
@@ -1114,7 +1343,11 @@ C Initialize any constants here
 ! Note, MATL, MATD, etc. are dimensioned in header
       INCLUDE 'header'
 
-      INTEGER I,K
+      INTEGER I,K,KD83
+! set to KD81=0 to impose zero vertical pressure gradient BC at the bottom boundary
+! set to KD81=1 to impose Klemp & Durran 83 vertical pressure gradient BC at the bottom boundary
+! WARNING KD83=1 is not tested
+        KD83=0
 ! We first need to check to see which processor we are, if we are
 ! the upper or lowermost process, then apply boundary conditions
 C Apply the boundary conditions
@@ -1133,7 +1366,17 @@ C Use Dirichlet boundary conditions, dp/dz=0 at walls
             MATL_C(I,1)=0.
             MATD_C(I,1)=1.
             MATU_C(I,1)=-1.
+          IF (KD83.EQ.0) THEN
             VEC_C(I,1)=(0.,0.)
+          ELSE
+! dphi/dz = N*dw_k/dz/(Kx^2 + Kz^2)**0.5
+            VEC_C(I,1)=((TH_BC_YMIN_C1(1))**0.5d0)/                     &
+     &                  ((KX2(I)+KZ2(K))**0.5d0)*                       &
+     &                  (CU2(I,K,3))
+          IF (ABS(CU2(I,K,2)).GT.1.0d-10) THEN
+             WRITE(*,*) 'ERROR U2 KD83'
+          END IF
+          END IF
           END IF
         END DO
         END IF
@@ -1203,7 +1446,6 @@ C prevent the tridiagonal matrix from becomming singular for i,k=0
       RETURN
       END
 
-
       SUBROUTINE APPLY_BC_VEL_PHYS_MPI
 ! This subroutine applies the boundary conditions for the Poisson Eq.
 ! Note, MATL, MATD, etc. are dimensioned in header
@@ -1220,7 +1462,6 @@ C prevent the tridiagonal matrix from becomming singular for i,k=0
       RETURN
       END
 
- 
       SUBROUTINE TRANSPOSE_MPI_XZ_TO_XY()
 ! This subroutine starts with all arrays decomposed in x-z slabs
 ! and transposes the data so that it is decomposed in x-y slabs

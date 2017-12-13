@@ -64,9 +64,12 @@ C A flag to determine if we are considering the first time-step
       FIRST_TIME=.TRUE.
 
       DO TIME_STEP = TIME_STEP+1, TIME_STEP+N_TIME_STEPS
+! set boundary conditions DAN
+        CALL SET_BCS
+! optional define par here if the light is time dependent
+!       CALL DEFINE_PAR
         IF (RANK.EQ.0) 
      &        WRITE(6,*) 'Now beginning TIME_STEP = ',TIME_STEP
-
         DO RK_STEP=1,3
           IF (NUM_PER_DIR.EQ.3) THEN
             IF (TIME_AD_METH.EQ.1) CALL RK_PER_1
@@ -84,6 +87,15 @@ C A flag to determine if we are considering the first time-step
         END DO
         TIME=TIME+DELTA_T
         FIRST_TIME=.FALSE.
+
+
+! Optionally apply a filter to the scalar field
+        DO N=1,N_TH
+          IF (FILTER_TH(N)
+     &       .AND.(MOD(TIME_STEP,FILTER_INT(N)).EQ.0)) THEN
+             CALL FILTER_CHAN(N)
+          END IF
+        END DO
 
 ! Save statistics to an output file
         IF (MOD(TIME_STEP,SAVE_STATS_INT).EQ.0) THEN

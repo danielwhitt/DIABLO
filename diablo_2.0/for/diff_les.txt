@@ -1,0 +1,269 @@
+15c15
+<       integer i,j,k,l,m,ij,N
+---
+>       integer i,j,k,l,m,ij
+19d18
+<       real*8 KAPPA_T_mean(0:NY+1)
+23,28d21
+< ! parameters for subgrid scale Prandtl number from Anderson 2009 Table
+< ! 3, bottom line
+<       real*8 Gprs,Rithprs,Nprs
+<       parameter(Gprs=1.0d0)
+<       parameter(Rithprs=0.94d0)
+<       parameter(Nprs=1.5d0)
+35a29,32
+> ! Array for writing HDF5 files
+>       real*8 Diag(1:NY)
+>       character*20 gname
+> 
+98a96
+> 
+101a100,101
+> 
+> 
+228,274c228,229
+< ! now calculate KAPPA
+< ! convert TH to physical space
+<       DO N=1,N_TH
+<         CS2(:,:,:)=CTH(:,:,:,N)
+<         CALL FFT_XZ_TO_PHYSICAL(CS2,S2,0,NY+1)
+<         TH(:,:,:,N)=S2(:,:,:)
+<       END DO
+< ! Calculate Rig
+<       DO J=2,NY
+<         DO K=0,NZP-1
+<           DO I=0,NXM
+<             Rig(I,K,J)=DY(J)*RI(1)*(TH(I,K,J,1)-TH(I,K,J-1,1))/
+<      &          ((U1(I,K,J)-U1(I,K,J-1))**2.0d0+
+<      &           (U3(I,K,J)-U3(I,K,J-1))**2.0d0)
+<           END DO
+<         END DO
+<       END DO
+<       DO N=2,N_TH
+<       DO J=2,NY
+<         DO K=0,NZP-1
+<           DO I=0,NXM
+<             Rig(I,K,J)=Rig(I,K,J)+
+<      &     DY(J)*RI(N)*(TH(I,K,J,N)-TH(I,K,J-1,N))/
+<      &          ((U1(I,K,J)-U1(I,K,J-1))**2.0d0+
+<      &           (U3(I,K,J)-U3(I,K,J-1))**2.0d0)
+<           END DO
+<         END DO
+<       END DO
+<       END DO
+< ! Calculate PRM1_T
+<       DO N=1,N_TH
+<       DO J=2,NY
+<         DO K=0,NZP-1
+<           DO I=0,NXM
+<            IF (Rig(I,K,J).gt.0.0d0) THEN
+<            PRM1_T(I,K,J,N)=Gprs/(1.0d0+(Rig(I,K,J)/Rithprs)**Nprs)
+<            IF (PRM1_T(I,K,J,N).lt.0.01d0) THEN
+<               PRM1_T(I,K,J,N)=0.01d0
+<            END IF
+<            ELSE
+<            PRM1_T(I,K,J,N)=1.0d0
+<            END IF
+<           END DO
+<         END DO
+<       END DO
+<       END DO
+< ! Now that we have calculated NU_T and PRM1_T, set the value at the ghost cells
+---
+> 
+> ! Now that we have calculated NU_T, set the value at the ghost cells
+278,287c233
+< ! Now calculate KAPPA_T
+<          DO N=1,N_TH
+<          do J=1,NY+1
+<            do K=0,NZP-1
+<              do I=0,NXM
+<            KAPPA_T(I,K,J,N)=PRM1_T(I,K,J,N)*NU_T(I,K,J)
+<              end do
+<            end do
+<          end do
+<          end do
+---
+> 
+289a236
+> 
+390,451d336
+< C Add the horizontal diffusive terms using explicit timestepping
+< C first convert TH back to Fourier space
+<       DO N=1,N_TH
+<         S1(:,:,:)=TH(:,:,:,N)
+<         CALL FFT_XZ_TO_FOURIER(S1,CS1,0,NY+1)
+<         CTH(:,:,:,N)=CS1(:,:,:)
+<       END DO
+<       DO N=1,N_TH
+<         DO J=1,NY+1
+<           DO K=0,TNKZ
+<             DO I=0,NXP-1
+<               CS1(I,K,J)=CIKX(I)*CTH(I,K,J,N)
+<             END DO
+<           END DO
+<         END DO
+<         CALL FFT_XZ_TO_PHYSICAL(CS1,S1,0,NY+1)
+<          do j=1,NY+1
+<            do k=0,NZP-1
+<              do i=0,NXM
+<                S1(I,K,J)=KAPPA_T(I,K,J,N)*S1(I,K,J)
+<              end do
+<            end do
+<          end do
+<          CALL FFT_XZ_TO_FOURIER(S1,CS1,0,NY+1)
+<          DO J=JSTART_TH(N),JEND_TH(N)
+<            DO K=0,TNKZ
+<              DO I=0,NXP-1
+<               CFTH(I,K,J,N)=CFTH(I,K,J,N)+CIKX(I)*CS1(I,K,J) 
+<              END DO
+<            END DO
+<          END DO
+< 
+<         DO J=1,NY+1
+<           DO K=0,TNKZ
+<             DO I=0,NXP-1
+<               CS1(I,K,J)=CIKZ(K)*CTH(I,K,J,N)
+<             END DO
+<           END DO
+<         END DO
+<         CALL FFT_XZ_TO_PHYSICAL(CS1,S1,0,NY+1)
+<          do j=1,NY+1
+<            do k=0,NZP-1
+<              do i=0,NXM
+<                S1(I,K,J)=KAPPA_T(I,K,J,N)*S1(I,K,J)
+<              end do
+<            end do
+<          end do
+<          CALL FFT_XZ_TO_FOURIER(S1,CS1,0,NY+1)
+<          DO J=JSTART_TH(N),JEND_TH(N)
+<            DO K=0,TNKZ
+<              DO I=0,NXP-1
+<               CFTH(I,K,J,N)=CFTH(I,K,J,N)+CIKZ(K)*CS1(I,K,J)
+<              END DO
+<            END DO
+<          END DO
+<         END DO ! end do n
+< ! convert TH to physical space
+<       DO N=1,N_TH
+<         CS2(:,:,:)=CTH(:,:,:,N)
+<         CALL FFT_XZ_TO_PHYSICAL(CS2,S2,0,NY+1)
+<         TH(:,:,:,N)=S2(:,:,:)
+<       END DO
+459d343
+<           KAPPA_T_mean(J)=0.d0
+464d347
+<             KAPPA_T_mean(J)=KAPPA_T_mean(J)+KAPPA_T(I,K,J,1)
+583,585d465
+<       call mpi_allreduce(mpi_in_place,KAPPA_T_mean,NY+2
+<      &    ,MPI_DOUBLE_PRECISION,
+<      &     MPI_SUM,MPI_COMM_Z,ierror)
+593d472
+<           KAPPA_T_mean(j)=KAPPA_T_mean(j)/dble(NX*NZ)
+596a476,500
+> 
+> #ifdef HDF5
+>       FNAME='mean_les.h5'
+> 
+>       gname='time'
+>       call WriteHDF5_real(FNAME,gname,TIME)
+> 
+>       IF (RANKZ.EQ.0) THEN
+> 
+>       gname='gyf'
+>       Diag=gyf(1:NY)
+>       call WriteStatH5(FNAME,gname,Diag)
+> 
+>       gname='nu_sgs' 
+>       Diag=NU_T_mean(1:NY)
+>       call WriteStatH5(FNAME,gname,Diag)     
+> 
+>       gname='eps_sgs1' 
+>       Diag=EPS_SGS1_MEAN(1:NY)
+>       call WriteStatH5(FNAME,gname,Diag)     
+>     
+>       END IF
+>  
+> #else
+> ! Here we aren't using HDF5, so write to text file
+604d507
+< 
+608c511
+<      &      NU_T_mean(J),KAPPA_T_MEAN(J),EPS_SGS1_MEAN(J)
+---
+>      &      NU_T_mean(J),EPS_SGS1_MEAN(J)
+609a513
+> 420     format(I3,' ',2(F30.20,' '))
+611c515
+< 420     format(I3,' ',4(F30.20,' '))
+---
+> #endif
+959,1026d862
+<       subroutine tkebudget_chan_les
+< ! Calculate the componet of th SGS dissipation rate 
+< ! only includes the terms timestepped implicitly
+<       include 'header'
+<       include 'header_les'
+< 
+<       character*35 FNAME
+<       real*8 epsilon_sgs(NY)
+<       integer i,j,k
+< 
+< ! Compute the turbulent dissipation rate, epsilon=nu*<du_i/dx_j
+< ! du_i/dx_j>
+< 
+<       DO J=1,NY
+<         DO K=0,NZP-1
+<           DO I=0,NXM
+<             TEMP(I,K,J)=U1(I,K,J)*
+<      &        (  (NU_T(I,K,J+1) * (U1(I,K,J+1) - U1(I,K,J)) / DY(J+1)
+<      &         -  NU_T(I,K,J) * (U1(I,K,J)   - U1(I,K,J-1)) / DY(J))
+<      &               /DYF(J)  )
+<      &           +U3(I,K,J)*
+<      &        (  (NU_T(I,K,J+1) * (U3(I,K,J+1) - U3(I,K,J)) / DY(J+1)
+<      &        - NU_T(I,K,J) * (U3(I,K,J)   - U3(I,K,J-1)) / DY(J))
+<      &              /DYF(J)  )
+<      &           +U2(I,K,J)*
+<      &     ((0.5d0*(NU_T(I,K,J)+NU_T(I,K,J+1))*(U2(I,K,J+1)-U2(I,K,J))
+<      &                                              / DYF(J)
+<      &    -0.5d0*(NU_T(I,K,J)+NU_T(I,K,J-1))*(U2(I,K,J)-U2(I,K,J-1))
+<      &                                          / DYF(J-1))   /DY(J)  )
+<           END DO
+<         END DO
+<       END DO
+<  
+< ! Now calculate the horizontal average
+<         do j=1,NY
+<           epsilon_sgs(j)=0.d0
+<           do i=0,NXM
+<           do k=0,NZP-1
+<             epsilon_sgs(j)=epsilon_sgs(j)+TEMP(I,K,J)
+<           end do
+<           end do
+<         end do
+< 
+<       call mpi_allreduce(mpi_in_place,epsilon_sgs,NY+2
+<      &    ,MPI_DOUBLE_PRECISION,
+<      &     MPI_SUM,MPI_COMM_Z,ierror)        
+< 
+<       DO J=1,NY
+<          epsilon_sgs(J)=epsilon_sgs(J)/dble(NX*NZ)
+<       END DO
+< 
+<       IF (RANKZ.EQ.0) THEN
+<       IF (USE_MPI) THEN
+<         FNAME='tke_les'//trim(MPI_IO_NUM)//'.txt'
+<       ELSE
+<         FNAME='tke_les.txt'
+<       END IF
+<       open(46,file=FNAME,form='formatted',status='unknown')
+< 
+<       write(46,*) TIME_STEP,TIME,DELTA_T
+<         do j=1,NY
+<           write(46,460) j,GYF(J),epsilon_sgs(J)
+<         end do
+<       END IF
+< 460     format(I3,' ',2(F30.20,' '))
+< 
+< 
+<       END

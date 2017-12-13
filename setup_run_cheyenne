@@ -1,0 +1,79 @@
+#!/bin/bash
+#rundir=/glade/scratch/dwhitt/diablo_run/W1024_10_cool_rednoise_161_3x_repeatch2
+#rundir=/glade/scratch/dwhitt/diablo_runoct17/diablo_run/NW256_2_cool_rednoise_161_2x_nofrontstart3d_rerunoct192017_ch
+#rundir=/glade/scratch/dwhitt/diablo_runoct17/diablo_run/W1024_19_cool_rednoise_161_2x_rerunoct232017_ch
+rundir=/glade/scratch/dwhitt/diablo_runoct17/diablo_run/les_convergence_tests/NW576_dz125
+#rundir=/glade/scratch/dwhitt/diablo_runoct17/diablo_run/NW256_2_cool_rednoise_161_2x_nofrontstart3d_coolingandwindWT17
+#rundir=/glade/scratch/dwhitt/diablo_runoct17/diablo_run/W1024_29_cool_rednoise_161_2x_rerunoct232017_ch_withhorizontaldiff
+#rundir=/glade/scratch/dwhitt/diablo_run/W1024_18_cool_rednoise_161_3x
+codedir=/glade/u/home/dwhitt/DIABLO/diablo_2.0/for
+
+echo $rundir
+
+cd $codedir
+rm grid*
+
+# copy grid files from run dir
+cd $rundir
+cp grid* $codedir/
+./cleanup.sh
+cd $codedir
+# load any module files that you need
+#module load diablo_2d
+#module load ifort
+##module load hdf5/parallel
+#source /glade/u/apps/opt/lmod/4.2.1/init/bash
+# fftw, ifort, hdf5, mpi 
+#source /glade/u/apps/opt/lmod/4.2.1/init/tcsh
+#source /glade/u/apps/opt/lmod/5.0/init/tcsh
+#module unload netcdf
+#module unload ncl
+#module unload ncview
+#source /glade/u/apps/opt/lmod/4.2.1/init/tcsh
+#module load hdf5-mpi/1.8.9
+#module load mpich/3.0.4
+
+#source /glade/u/apps/opt/lmod/5.0/init/tcsh
+# For cheyenne
+# setup 1
+#module purge
+#module load intel mkl mpt ncarcompilers
+#module load netcdf-mpi
+#export NCAR_LIBS_NETCDFMPI="-lhdf5_fortran ${NCAR_LIBS_NETCDFMPI}"
+#export NCAR_LIBS_MKL="-lfftw2xf_double_intel ${NCAR_LIBS_MKL}"
+
+
+
+# fftw, ifort, hdf5, mpi 
+#module purge
+#module load intel/16.0.3 mkl/11.3.3 impi/5.1.3.210 ncarcompilers/0.4.1 netcdf-mpi/4.4.1.1
+#export NCAR_LIBS_NETCDFMPI="-lhdf5_fortran ${NCAR_LIBS_NETCDFMPI}"
+#export NCAR_LIBS_MKL="-lfftw2xf_double_intel ${NCAR_LIBS_MKL}"
+
+source /glade/u/apps/ch/opt/Lmod/7.3.14/lmod/7.3.14/init/bash
+module purge
+
+#working setup:
+#module load intel/16.0.3 mkl/11.3.3 impi/5.1.3.210 ncarcompilers/0.4.1 netcdf-mpi/4.4.1.1
+#module load netcdf-mpi/4.4.1.1
+#export NCAR_LIBS_NETCDF="-lhdf5_fortran ${NCAR_LIBS_NETCDF}"
+#export NCAR_LIBS_MKL="-lfftw2xf_double_intel ${NCAR_LIBS_MKL}"
+
+# WORKING SETUP:
+module load intel/17.0.1 mkl impi ncarcompilers/0.4.1 netcdf-mpi/4.4.1.1
+export NCAR_LIBS_NETCDF="-lhdf5_fortran ${NCAR_LIBS_NETCDF}"
+export NCAR_LIBS_MKL="-lfftw2xf_double_intel ${NCAR_LIBS_MKL}"
+# TESTING SETUP
+#module load intel/17.0.1 mkl mpt/2.16 ncarcompilers/0.4.1 netcdf-mpi/4.4.1.1
+#export NCAR_LIBS_NETCDF="-lhdf5_fortran ${NCAR_LIBS_NETCDF}"
+#export NCAR_LIBS_MKL="-lfftw2xf_double_intel ${NCAR_LIBS_MKL}"
+
+module list
+
+# compile the code
+make clean
+
+make
+
+# copy the executable back to the run dir
+cp diablo $rundir/diablo

@@ -10,10 +10,12 @@
       real*8 Nmax
       integer i,j,k,n
       integer imin,jmin,kmin
-
 ! Set the initial dt to some arbitrary large number
-      dt=999.d0
-
+      IF (TIME_STEP.lt.5) THEN
+      dt=1.0d-2
+      ELSE
+      dt=30.d0
+      END IF
 ! Set the timestep based on viscosity and diffusivity
       dt=min(dt,0.5d0*min(dx(1),dy(1))/NU)
       do n=1,N_TH
@@ -31,7 +33,25 @@
       end if
       end do
 
-! Use the model velocity to calculate the CFL number
+      if ((N_TH.gt.0).and.(I_RO.NE.0)) then
+! If we have rotating flow with scalar advection, add in thermal wind
+      do n=1,N_TH
+      do j=JSTART,JEND-1
+        do k=0,NZP-1
+          do i=0,NXM
+            dt_x=cfl*dx(i)/abs(U1(i,k,j)-1.0d0*DRHODZ(N)*RI(N)
+     &                          *GYF(j)/I_RO+0.5d0*DRHODZ(N)*RI(N)
+     &                          *LY/I_RO)
+            dt_y=cfl*dy(j)/abs(U2(i,k,j))
+            dt_z=cfl*dz(k)/abs(U3(i,k,j)+(RI(N)/I_RO)
+     &                          *DRHODX(N)*GYF(j)-0.5d0*(RI(N)/I_RO)
+     &                          *DRHODX(N)*LY)
+            dt=min(dt,dt_x,dt_y,dt_z)
+           end do
+         end do
+      end do
+      end do
+      else
       do j=1,NY
         do k=0,NZP-1
           do i=0,NXM
@@ -42,6 +62,7 @@
           end do
         end do
       end do
+      end if
       if (USE_MPI) then
          call get_minimum_mpi(dt)
       end if
@@ -50,10 +71,10 @@
         IF (RANK.EQ.0)
      &        write(*,*) 'Error: dt<=0 in courant'
 ! Set DELTA_T to some small default value
-        DELTA_T=0.0001d0
-      else if (dt.ge.999.) then
+        DELTA_T=0.000001d0
+      else if (dt.ge.99.) then
 !        write(*,*) 'WARNING: DELTA_T > 999, value capped at 999'
-        DELTA_T=999.d0
+        DELTA_T=99.d0
       else
         DELTA_T=dt
       end if

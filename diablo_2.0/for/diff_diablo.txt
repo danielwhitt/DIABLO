@@ -1,0 +1,17 @@
+67,70d66
+< ! set boundary conditions DAN
+<         CALL SET_BCS
+< ! optional define par here if the light is time dependent
+< !       CALL DEFINE_PAR
+72a69
+> 
+90,98d86
+< 
+< 
+< ! Optionally apply a filter to the scalar field
+<         DO N=1,N_TH
+<           IF (FILTER_TH(N)
+<      &       .AND.(MOD(TIME_STEP,FILTER_INT(N)).EQ.0)) THEN
+<              CALL FILTER_CHAN(N)
+<           END IF
+<         END DO

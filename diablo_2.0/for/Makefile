@@ -10,14 +10,16 @@
 COMPILER = ifort
 
 # Any desired options for the compiler (e.g. -O2, -g, etc.)
-USEROPTS =-fpp -u
-#USEROPTS = -O3 -fpp -mcmodel=medium -u
+#USEROPTS = -O3 -fpp -check bounds -mcmodel medium -shared-intel -heap-arrays -g -traceback
+USEROPTS = -O3 -fpp -check bounds -fp-model precise -heap-arrays -mcmodel medium -shared-intel
+#USEROPTS = -O3 -fpp -check bounds -mcmodel medium -shared-intel
+#USEROPTS = -O3 -fpp -check bounds
 
 # Location where fftw and netcdf (optional) libraries are installed
-LINKDIR = /mhome/damtp/atmos/jrt51/local/lib
+#LINKDIR=/glade/p/work/dwhitt/fftw2_local/lib
 
 # Location where the optional netcdf include file (netcdf.inc) is installed
-INCLUDEDIR = /usr/local/include
+#INCLUDEDIR=/glade/p/work/dwhitt/fftw2_local/include
 
 # Option to compile with MPI libraries
 PARALLEL = TRUE
@@ -27,6 +29,13 @@ LES = TRUE
 
 # Option to complile with the HDF5 libarary
 HDF5 = TRUE
+
+# Option to complile with the flux limited vertical advection
+FLUX = FALSE
+ 
+# Option to complile with biogeochemistry 
+BIO = TRUE
+
 # **********    END of user definitions ************
 
 ifeq ($(ARCH),ifort)
@@ -43,106 +52,142 @@ else
 LES_o = no_les.o
 endif
 
+ifeq ($(BIO),TRUE)
+BIOOPTS=-DBIO
+endif
+
+ifeq ($(FLUX),TRUE)
+FLUXOPTS=-DFLUX
+endif
+
 ALL2ALL=1
 
-ifeq ($(PARALLEL),TRUE)
 COMPILER = mpif90 
 MPI = mpi.o
 MPIF = mpi.f
-ifeq ($(HDF5),TRUE)
+#ifeq ($(HDF5),TRUE)
 HDF5_o = hdf5.o 
-COMPILER = h5pfc
-HDF5OPTS=-DHDF5 
-endif
-else
-ifeq ($(HDF5),TRUE)
-HDF5_o = hdf5s.o 
-COMPILER = h5fc
+COMPILER = mpif90 
 HDF5OPTS=-DHDF5
-endif
-MPI = mpi_serial.o
-endif
+#endif
 
 MAIN = diablo.f
-HEADER = header
+#HEADER = header
 
 # Use the parameters to set flags
-ifeq ($(NETCDF),TRUE)
-COMPOPTS = $(USEROPTS) $(HDF5OPTS) -I$(INCLUDEDIR)
-LINKOPTS = -L$(LINKDIR) -lrfftw -lfftw -lnetcdf
-NETCDF_o = netcdf.o
-else
-COMPOPTS = $(USEROPTS) $(HDF5OPTS)
-LINKOPTS = -L$(LINKDIR) -lrfftw -lfftw
-NETCDF_o = no_netcdf.o
-endif
+#ifeq ($(NETCDF),TRUE)
+#COMPOPTS = $(USEROPTS) $(HDF5OPTS) -I$(INCLUDEDIR)
+#LINKOPTS = -L$(LINKDIR) -lrfftw -lfftw -lnetcdf
+#NETCDF_o = netcdf.o
+#else
+COMPOPTS = $(USEROPTS) $(HDF5OPTS) $(FLUXOPTS) $(BIOOPTS)
+LINKOPTS = -L$(LINKDIR) -lfftw2xf_intel
+#NETCDF_o = no_netcdf.o
+#endif
 
 diablo: $(MAIN) diablo_io.o periodic.o channel.o courant.o $(LES_o) \
-	duct.o cavity.o fft.o rand.o set_ics.o save_stats.o user_rhs.o $(MPI) \
-	$(HEADER) grid_def $(HDF5_o)
-	$(COMPILER) $(COMPOPTS) $(MAIN) -o diablo \
+	duct.o cavity.o fft.o rand.o set_ics.o filter.o \
+        save_stats.o user_rhs.o set_bcs.o bio.o $(MPI) \
+	header $(HDF5_o)
+	$(COMPILER) $(COMPOPTS) \
+        $(MAIN) -o diablo \
 	diablo_io.o periodic.o channel.o courant.o $(LES_o) \
-	duct.o cavity.o fft.o rand.o set_ics.o save_stats.o user_rhs.o \
+	duct.o cavity.o fft.o rand.o set_ics.o filter.o \
+        save_stats.o user_rhs.o set_bcs.o bio.o \
 	$(MPI) $(LINKOPTS) $(HDF5_o)
 
-diablo_io.o: diablo_io.f header grid_def
-	$(COMPILER) $(COMPOPTS) -c diablo_io.f
+diablo_io.o: diablo_io.f bio.o \
+        header
+	$(COMPILER) $(COMPOPTS) \
+         -c diablo_io.f
 
-periodic.o: periodic.f fft.o header grid_def
-	$(COMPILER) $(COMPOPTS) -c periodic.f
+periodic.o: periodic.f fft.o header
+	$(COMPILER) $(COMPOPTS) \
+        -c periodic.f
 
-channel.o: channel.f fft.o $(MPI) header grid_def
-	$(COMPILER) $(COMPOPTS) -c channel.f
+channel.o: channel.f fft.o user_rhs.o \
+           $(MPI) header
+	$(COMPILER) $(COMPOPTS) \
+        -c channel.f
 
-set_ics.o: set_ics.f channel.o fft.o $(MPI) header grid_def
-	$(COMPILER) $(COMPOPTS) -c set_ics.f
+set_ics.o: set_ics.f channel.o fft.o \
+           $(MPI) header
+	$(COMPILER) $(COMPOPTS) \
+        -c set_ics.f
 
-save_stats.o: save_stats.f channel.o fft.o $(MPI) header grid_def
+filter.o: filter.f header
+	$(COMPILER) $(COMPOPTS) \
+        -c filter.f
+
+save_stats.o: save_stats.f channel.o fft.o $(MPI) header
 	$(COMPILER) $(COMPOPTS) -c save_stats.f
 
-user_rhs.o: user_rhs.f channel.o fft.o $(MPI) header grid_def
-	$(COMPILER) $(COMPOPTS) -c user_rhs.f
+user_rhs.o: user_rhs.f bio.o fft.o header
+	$(COMPILER) $(COMPOPTS) \
+        -c user_rhs.f
 
-courant.o: courant.f channel.o fft.o $(MPI) header grid_def
-	$(COMPILER) $(COMPOPTS) -c courant.f
+set_bcs.o: set_bcs.f header
+	$(COMPILER) $(COMPOPTS) \
+        -c set_bcs.f
+
+bio.o: bio.f fft.o header
+	$(COMPILER) $(COMPOPTS) \
+        -c bio.f
+
+courant.o: courant.f $(MPI) header
+	$(COMPILER) $(COMPOPTS) \
+        -c courant.f
 
 ifeq ($(LES),TRUE) 
-les.o: les.f fft.o header header_les grid_def
-	$(COMPILER) $(COMPOPTS) -c les.f
+les.o: les.f fft.o channel.o $(MPI) \
+       header header_les grid_def
+	$(COMPILER) $(COMPOPTS) \
+        -c les.f
 else
 no_les.o: dummy_code/no_les.f
-	$(COMPILER) $(COMPOPTS) -c dummy_code/no_les.f
+	$(COMPILER) $(COMPOPTS) \
+        -c dummy_code/no_les.f
 endif
 
 ifeq ($(PARALLEL),TRUE)
-mpi.o: $(MPIF) header 
-	$(COMPILER) $(COMPOPTS) -c -o mpi.o $(MPIF) 
+mpi.o: $(MPIF) header
+	$(COMPILER) $(COMPOPTS) \
+        -c -o mpi.o $(MPIF) 
 else
 mpi_serial.o: dummy_code/mpi_serial.f header grid_def
-	$(COMPILER) $(COMPOPTS) -c dummy_code/mpi_serial.f
+	$(COMPILER) $(COMPOPTS) \
+        -c dummy_code/mpi_serial.f
 endif
 
 header : header_mpi grid_def
 
 header_mpi : grid_mpi
 
-hdf5.o : hdf5.f
-	$(COMPILER) $(COMPOPTS) -c hdf5.f
+hdf5.o : hdf5.f channel.o $(MPI) courant.o fft.o \
+         header
+	$(COMPILER) $(COMPOPTS)  \
+        -c hdf5.f
 
-hdf5s.o : hdf5s.f
-	$(COMPILER) $(COMPOPTS) -c hdf5s.f
+hdf5s.o : hdf5s.f fft.o channel.o $(MPI) courant.o \
+          header
+	$(COMPILER) $(COMPOPTS) \
+        -c hdf5s.f
 
 duct.o: duct.f header grid_def
-	$(COMPILER) $(COMPOPTS) -c duct.f
+	$(COMPILER) $(COMPOPTS) \
+        -c duct.f
 
 cavity.o: cavity.f header grid_def
-	$(COMPILER) $(COMPOPTS) -c cavity.f
+	$(COMPILER) $(COMPOPTS) \
+        -c cavity.f
 
-fft.o:  fft.f header grid_def
-	$(COMPILER) $(COMPOPTS) -c fft.f
+fft.o:  fft.f header
+	$(COMPILER) $(COMPOPTS) \
+        -c fft.f
 
 rand.o:  rand.f
-	$(COMPILER) $(COMPOPTS) -c rand.f
+	$(COMPILER) $(COMPOPTS) \
+        -c rand.f
 
 clean:
 	rm -f *.o fort.* *~ diablo core

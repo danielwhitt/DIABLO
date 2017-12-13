@@ -19,7 +19,7 @@ C    CURRENT_VERSION number to make obsolete previous input files!)
       READ(11,*)
       READ(11,*)
       READ(11,*)
-      READ(11,*) FLAVOR,   VERSION
+      READ(11,*) FLAVOR,   VERSION,  VADV_SCHEME
       IF (VERSION .NE. CURRENT_VERSION) STOP 'Wrong input data format.'
       READ(11,*)
       READ(11,*) USE_MPI,    LES
@@ -31,7 +31,7 @@ C    CURRENT_VERSION number to make obsolete previous input files!)
       READ(11,*) NUM_PER_DIR, CREATE_NEW_FLOW
       READ(11,*)
       READ(11,*) N_TIME_STEPS, TIME_LIMIT, DELTA_T, RESET_TIME, 
-     &     VARIABLE_DT, CFL, UPDATE_DT
+     &     VARIABLE_DT, CFL, UPDATE_DT, ANA_FRC
       READ(11,*)
       READ(11,*) VERBOSITY, SAVE_FLOW_INT, SAVE_STATS_INT, MOVIE
       READ(11,*)
@@ -45,6 +45,16 @@ C    CURRENT_VERSION number to make obsolete previous input files!)
         READ(11,*) RI(N), PR(N)
       END DO
 
+C INPUT BIOGEOCHEMICAL CONSTANTS:
+C Right now there is one option: WLT_BIO, which must be set in 
+C flavor 
+C If the FLAVOR is 'WLT_BIO' then read in the necessary reaction rate constants
+C code is in bio.f
+#ifdef BIO
+      IF (FLAVOR.EQ.'WLT_BIO') THEN
+        CALL INPUT_WLT_BIO
+      END IF
+#endif
 C If we are using MPI, then Initialize the MPI Variables
       IF (USE_MPI) THEN
         CALL INIT_MPI
@@ -98,7 +108,7 @@ C Initialize grid
      *           'GNU General Public License.'
       WRITE(6,*) 'No warranty is expressed or implied.'
       WRITE(6,*)
-      write(*,*) 'Flavor: ',FLAVOR
+      write(6,*) 'Flavor: ',FLAVOR
       WRITE(6,*) 'Grid size: NX =',NX,', NY =',NY,', NZ =',NZ,'.'
       DO N=1,N_TH
         WRITE(6,*) 'Scalar number: ',N
@@ -107,6 +117,30 @@ C Initialize grid
       END DO
       WRITE(6,*) 'NU: ',NU
       WRITE(6,*) 'BETA: ',BETA
+      WRITE(6,*) 'BC_TYPE:',BC_TYPE
+      WRITE(6,*) 'IC_TYPE:',IC_TYPE
+#ifdef BIO
+      IF (FLAVOR.EQ.'WLT_BIO') THEN
+      WRITE(6,*) '*****'
+      WRITE(6,*) 'WLT_BIO PARAMETERS:'
+      WRITE(6,*) 'KWLIGHT',KWLIGHT 
+      WRITE(6,*) 'ALPHALIGHT',ALPHALIGHT 
+      WRITE(6,*) 'I0LIGHT',I0LIGHT 
+      WRITE(6,*) 'VMNUT',VMNUT 
+      WRITE(6,*) 'KNNUT',KNNUT 
+      WRITE(6,*) 'SIGMADPHY',SIGMADPHY 
+      WRITE(6,*) 'IVLEVZOO',IVLEVZOO 
+      WRITE(6,*) 'RZOO',RZOO 
+      WRITE(6,*) 'GAMMANZOO',GAMMANZOO 
+      WRITE(6,*) 'ZETAZOO',ZETAZOO 
+      WRITE(6,*) 'ZETA2ZOO',ZETA2ZOO 
+      WRITE(6,*) 'DELTADET',DELTADET 
+      WRITE(6,*) 'WDET',WDET
+      WRITE(6,*) 'DEEPN',DEEPN
+      WRITE(6,*) 'NUDGETS',NUDGETS
+      WRITE(6,*) '*****' 
+      END IF
+#endif
       END IF
 
 C Initialize FFT package (includes defining the wavenumber vectors).
@@ -145,6 +179,12 @@ C Create flow.
           CALL CREATE_FLOW_PER
         ELSEIF (NUM_PER_DIR.EQ.2) THEN
           CALL CREATE_FLOW_CHAN
+#ifdef BIO
+          IF (FLAVOR.EQ.'WLT_BIO') THEN
+          CALL DEFINE_PAR
+          CALL DEFINE_U2DET
+          END IF
+#endif
         ELSEIF (NUM_PER_DIR.EQ.1) THEN
           CALL CREATE_FLOW_DUCT
         ELSEIF (NUM_PER_DIR.EQ.0) THEN
@@ -156,6 +196,12 @@ C Create flow.
         IF (RANK.EQ.0) 
      &        write(*,*) 'Reading flow...'
         CALL READ_FLOW
+#ifdef BIO
+          IF (FLAVOR.EQ.'WLT_BIO') THEN
+          CALL DEFINE_PAR
+          CALL DEFINE_U2DET
+          END IF
+#endif
         IF (RANK.EQ.0) 
      &       write(*,*) 'Done reading flow'
         
@@ -242,9 +288,9 @@ C----*|--.---------.---------.---------.---------.---------.---------.-|-------|
          IF (RANK.EQ.0) 
      &        write(*,*) 'NX_T, NY_T, NZ_T: ',NX_T,NY_T,NZ_T
 
-        IF ((NX .NE. NX_T) .OR. (NY .NE. NY_T) .OR. (NZ .NE. NZ_T))
+         IF ((NX .NE. NX_T) .OR. (NY .NE. NY_T) .OR. (NZ .NE. NZ_T))
      *     STOP 'Error: old flowfield wrong dimensions. '
-        IF (NUM_PER_DIR .NE. NUM_PER_DIR_T)
+         IF (NUM_PER_DIR .NE. NUM_PER_DIR_T)
      *     STOP 'Error: old flowfield wrong NUM_PER_DIR. '
 
          IF (RANK.EQ.0) 
@@ -258,11 +304,12 @@ C----*|--.---------.---------.---------.---------.---------.---------.-|-------|
 !     Specify in input.dat which scalars are to be read
          OPEN(UNIT=11,FILE=FNAME_TH(READ_TH_INDEX(N)),STATUS="OLD"
      &           ,FORM="UNFORMATTED")
-         READ (11) NX_T, NY_T, NZ_T, NUM_PER_DIR_T, TIME, TIME_STEP
-         READ (11) (((CTH(I,K,J,READ_TH_INDEX(N))
+          READ (11) NX_T, NY_T, NZ_T, NUM_PER_DIR_T, TIME, TIME_STEP
+          READ (11) (((CTH(I,K,J,READ_TH_INDEX(N))
      &           ,I=0,NKX),K=0,TNKZ),J=0,TNKY)
-         CLOSE(11)
-         END DO
+          CLOSE(11)
+          END DO
+
 
          ELSEIF (NUM_PER_DIR.EQ.2) THEN
             READ (10) (((CU1(I,K,J),I=0,NKX),K=0,TNKZ),J=1,NY),
@@ -317,7 +364,14 @@ C----*|--.---------.---------.---------.---------.---------.---------.-|-------|
          FNAME='end.h5'
          SAVE_PRESSURE=.TRUE.
       else
-         FNAME='out.h5'
+!         FNAME='out.h5'
+        FNAME='out.'
+     &        //CHAR(MOD(TIME_STEP,100000)/10000+48)
+     &        //CHAR(MOD(TIME_STEP,10000)/1000+48)
+     &        //CHAR(MOD(TIME_STEP,1000)/100+48)
+     &        //CHAR(MOD(TIME_STEP,100)/10+48)
+     &        //CHAR(MOD(TIME_STEP,10)+48)
+     &        //'.h5'
       end if
       if (FNAME(len_trim(FNAME)-2:len_trim(FNAME)).eq.".h5") then
          IF (NUM_PER_DIR.NE.2) THEN
@@ -360,6 +414,8 @@ C----*|--.---------.---------.---------.---------.---------.---------.-|-------|
 !     &        //CHAR(MOD(TIME_STEP,1000)/100+48)
 !     &        //CHAR(MOD(TIME_STEP,100)/10+48)
 !     &        //CHAR(MOD(TIME_STEP,10)+48)
+! 
+!     &        //CHAR(MOD(RANK,10)+48)
 
 
             END DO
@@ -420,14 +476,14 @@ C----*|--.---------.---------.---------.---------.---------.---------.-|-------|
       call WALL_TIME(END_TIME)
       if (END_TIME-START_TIME.gt.TIME_LIMIT) THEN
          IF (RANK.EQ.0) 
-     &        write(*,*) ' STOP because of wall-time hit!'
+     &        write(*,*) ' STOP beacuse of wall-time hit!'
          FLAG=.TRUE.
       END IF
       
       INQUIRE(FILE="stop.now", EXIST=FILE_EXISTS)
       IF ( FILE_EXISTS ) THEN
          IF (RANK.EQ.0) 
-     &        write(*,*) ' STOP because of stop.now file!'
+     &        write(*,*) ' STOP beacuse of stop.now file!'
          FLAG=.TRUE.
       END IF
       

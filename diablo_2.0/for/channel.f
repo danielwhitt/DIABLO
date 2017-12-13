@@ -8,7 +8,6 @@ C----*|--.---------.---------.---------.---------.---------.---------.-|-------|
 C This subroutine initializes various variables for the serial channel
 C flow subroutine. This is not called if MPI is turned on
 C Initialize any constants here
-
       INCLUDE 'header'
       INTEGER I,J,K,N
 
@@ -71,6 +70,14 @@ C----*|--.---------.---------.---------.---------.---------.---------.-|-------|
 
       INTEGER I,J,K,N,ISTART      
       REAL*8 TEMP1, TEMP2, TEMP3, TEMP4, TEMP5, UBULK
+#ifdef FLUX
+      REAL*8 FVL2_JPHFLX,FVL2_JMHFLX
+      REAL*8 RVL2J,RVL2JP1,RVL2JM1
+      REAL*8 FHVL2_JPH,FHVL2_JMH,FLVL2_JPH,FLVL2_JMH
+      REAL*8 FVL2_JPH,FVL2_JMH
+      REAL*8 PHI_JPH,PHI_JMH
+      REAL*8 U2TEMP,U2TEMPJP1
+#endif
 
 C Define the constants that are used in the time-stepping
 C For reference, see Numerical Renaissance
@@ -83,7 +90,6 @@ C For reference, see Numerical Renaissance
 C First, we will compute the explicit RHS terms and store in Ri
 C Note, Momentum equation and hence the RHS is evaluated at the
 C corresponding velocity points.
-
 C Store the old velocity in the RHS vector
       DO J=JSTART,JEND
         DO K=0,TNKZ
@@ -294,6 +300,7 @@ C End do number of passive scalars (N_TH)
 
 C Optionally, add user forcing to the right hand side
 C Here, we have U1, U2, U3, and TH in Fourier space
+       
       CALL USER_RHS_CHAN_FOURIER
 
 C If we are considering an LES, then add the subgrid scale stress:
@@ -303,86 +310,12 @@ C The subgrid scale stress is added to CFi:   CFi=CFi - d/dx_i tau_ij
       IF (LES.AND.((.NOT.CREATE_NEW_FLOW).OR.(TIME_STEP.GT.100))) THEN
 C If we have created new flow with random perturbations, wait for a
 C spinup before applying the subgrid model for stability purposes
-C In the process, Ui is converted to physical space
+C In the process, Ui/THn is converted to physical space
           call les_chan
-
-C Re-apply the boundary conditions for velocity
-C In the case of Neumann (applied stress) BCs, these were changed in the LES
-          call APPLY_BC_VEL_PHYS_MPI
-
-C APPLY constant SGS Prandlt number
-         DO N=1,N_TH
-         do j=1,NY+1
-           do k=0,NZP-1
-             do i=0,NXM
-               KAPPA_T(I,K,J,N)=1.d0*NU_T(I,K,J)
-             end do
-           end do
-         end do
-         end do
-
-C Add the horizontal diffusive terms using explicit timestepping
-C This is already done for the viscous terms inside les_chan.f
-
-         DO N=1,N_TH
-
-        DO J=1,NY+1
-          DO K=0,TNKZ
-            DO I=0,NXP-1
-              CS1(I,K,J)=CIKX(I)*CTH(I,K,J,N)
-            END DO
-          END DO
-        END DO
-        CALL FFT_XZ_TO_PHYSICAL(CS1,S1,0,NY+1)
-         do j=1,NY+1
-           do k=0,NZP-1
-             do i=0,NXM
-               S1(I,K,J)=KAPPA_T(I,K,J,N)*S1(I,K,J)
-             end do
-           end do
-         end do
-         CALL FFT_XZ_TO_FOURIER(S1,CS1,0,NY+1)
-         DO J=JSTART_TH(N),JEND_TH(N)
-           DO K=0,TNKZ
-             DO I=0,NXP-1
-              CFTH(I,K,J,N)=CFTH(I,K,J,N)+CIKX(I)*CS1(I,K,J) 
-             END DO
-           END DO
-         END DO
-
-        DO J=1,NY+1
-          DO K=0,TNKZ
-            DO I=0,NXP-1
-              CS1(I,K,J)=CIKZ(K)*CTH(I,K,J,N)
-            END DO
-          END DO
-        END DO
-        CALL FFT_XZ_TO_PHYSICAL(CS1,S1,0,NY+1)
-         do j=1,NY+1
-           do k=0,NZP-1
-             do i=0,NXM
-               S1(I,K,J)=KAPPA_T(I,K,J,N)*S1(I,K,J)
-             end do
-           end do
-         end do
-         CALL FFT_XZ_TO_FOURIER(S1,CS1,0,NY+1)
-         DO J=JSTART_TH(N),JEND_TH(N)
-           DO K=0,TNKZ
-             DO I=0,NXP-1
-              CFTH(I,K,J,N)=CFTH(I,K,J,N)+CIKZ(K)*CS1(I,K,J)
-             END DO
-           END DO
-         END DO
-        END DO ! end do n
- 
-
-! Now, convert TH to physical space for calculation of nonlinear terms
-        DO N=1,N_TH
-          CS1(:,:,:)=CTH(:,:,:,N)
-          CALL FFT_XZ_TO_PHYSICAL(CS1,S1,0,NY+1)
-          TH(:,:,:,N)=S1(:,:,:)
-        END DO
-
+C We need to add the boundary conditions back, which have been
+C removed during the calculation of SGS model so that it doesn't feel
+C the aphysical gradients at the boundary 
+          CALL APPLY_BC_VEL_PHYS_MPI 
       ELSE 
 C If the subgrid model hasn't been called, then it is necessary to 
 C convert to physical space.
@@ -399,7 +332,6 @@ C convert to physical space.
         END DO      
 
       END IF
-
 
 C Compute the nonlinear products in physical space, then transform
 C back to Fourier space to compute the derivative.
@@ -701,15 +633,161 @@ C Now, build the explicit RHS terms for the passive scalar(s)
 
 ! We are done with the horizontal derivatives of the nonlinear terms
 ! Add the vertical derivative term explicitly
+! update extra stencil points for higher order advection schemes
+#ifdef FLUX
+      IF ((USE_MPI).AND.(VADV_SCHEME.EQ.2)) THEN
+! dan added this - need to synchronize the RK steps for communication of interior
+! points - should not be necessary
+       CALL mpi_barrier(MPI_COMM_WORLD,ierror)
+!
+       CALL GHOST_VL2_MPI
+      END IF
       DO J=JSTART_TH(N),JEND_TH(N)
         DO K=0,NZP-1
           DO I=0,NXM
-            S1(I,K,J)=
-     &     (TH(I,K,J+1,N)*U2(I,K,J+1) + TH(I,K,J,N)*U2(I,K,J+1)
-     &    -TH(I,K,J,N)*U2(I,K,J)-TH(I,K,J-1,N)*U2(I,K,J))/(2.d0*DYF(J))
+! add sinking/swimming terms to vertical velocity
+#ifdef BIO 
+       IF ((N.EQ.5).AND.(FLAVOR.EQ.'WLT_BIO')) THEN
+           U2TEMP=U2DET(I,K,J)+U2(I,K,J)
+           U2TEMPJP1=U2DET(I,K,J+1)+U2(I,K,J+1)
+       ELSE
+           U2TEMP=U2(I,K,J)
+           U2TEMPJP1=U2(I,K,J+1)
+       END IF
+#else
+       U2TEMP=U2(I,K,J)
+       U2TEMPJP1=U2(I,K,J+1)
+#endif
+! **** begin flux limited advection logic
+       IF ((VADV_SCHEME.EQ.2).AND.(TIME_STEP.GT.10)) THEN
+       IF ((J.EQ.NY).AND.(RANKY.EQ.(NPROCY-1))) THEN
+! we are outside the top wall; no need to update explicitly
+       FVL2_JPH=0.0d0 ! U2(NY+1)=0
+       FVL2_JMH=0.0d0 ! U2(NY)=0
+! ****
+! WALLFLAG = 1 (JMH)
+       ELSE IF ((J.EQ.(NY-1)).AND.(RANKY.EQ.(NPROCY-1))) THEN
+! just inside the top boundary 
+       FVL2_JPH=0.0d0 ! U2(NY)=0, flux above is zero; only need to do JMH flux here
+       FVL2_JMH=FVL2_JMHFLX(U2TEMP,U2TEMPJP1,                           &
+     &                      TH(I,K,J-2,N),TH(I,K,J-1,N),                &
+     &             TH(I,K,J,N),TH(I,K,J+1,N),TH(I,K,J+2,N),1) 
+! ****
+! WALLFLAG = 1 (JPH)
+       ELSE IF ((J.EQ.(NY-2)).AND.(RANKY.EQ.(NPROCY-1))) THEN
+! One grid cell inside the top one - need modified flux limiter parameter r
+! define high order fluxes
+       FVL2_JPH=FVL2_JPHFLX(U2TEMP,U2TEMPJP1,                           &
+     &                      TH(I,K,J-2,N),TH(I,K,J-1,N),                &
+     &             TH(I,K,J,N),TH(I,K,J+1,N),TH(I,K,J+2,N),1)
+       FVL2_JMH=FVL2_JMHFLX(U2TEMP,U2TEMPJP1,                           &
+     &                      TH(I,K,J-2,N),TH(I,K,J-1,N),                &
+     &             TH(I,K,J,N),TH(I,K,J+1,N),TH(I,K,J+2,N),0)
+! ****
+! WALLFLAG = 2 JMH
+       ELSE IF ((J.EQ.3).AND.(RANKY.EQ.0)) THEN
+       FVL2_JPH=FVL2_JPHFLX(U2TEMP,U2TEMPJP1,                           &
+     &              TH(I,K,J-2,N),TH(I,K,J-1,N),                        &
+     &             TH(I,K,J,N),TH(I,K,J+1,N),TH(I,K,J+2,N),0)
+       FVL2_JMH=FVL2_JMHFLX(U2TEMP,U2TEMPJP1,                           &
+     &              TH(I,K,J-2,N),TH(I,K,J-1,N),                        &
+     &             TH(I,K,J,N),TH(I,K,J+1,N),TH(I,K,J+2,N),2)
+! ****
+! WALLFLAG = 2 JPH
+       ELSE IF ((J.EQ.2).AND.(RANKY.EQ.0)) THEN
+! just inside the bottom wall
+       FVL2_JPH=FVL2_JPHFLX(U2TEMP,U2TEMPJP1,                           &
+     &                      0.0d0,TH(I,K,J-1,N),                        &
+     &             TH(I,K,J,N),TH(I,K,J+1,N),TH(I,K,J+2,N),2)
+#ifdef BIO
+       IF ((FLAVOR.EQ.'WLT_BIO').AND.(N.EQ.5)) THEN
+! flux detritus out of the bottom wD*D(2) to avoid sinking flux convergence at the bottom of the domain
+! remove this for a deep domain
+       FVL2_JMH=TH(I,K,J,N)
+       END IF
+#endif
+       ELSE IF ((J.EQ.1).AND.(RANKY.EQ.0)) THEN
+! outside the bottom wall
+       FVL2_JPH=0.0d0
+       FVL2_JMH=0.0d0
+! ****
+! WALLFLAG = 0 for both
+       ELSE
+! INTERIOR POINTS (interior grids: J=2:NY, edge grids: 4:NY-3
+       IF ((J.EQ.NY).AND.(RANKY.LT.(NPROCY-1))) THEN
+! J=NY+2 [3] ghost point undefined on interior grid; need to use the extra stencil point
+       FVL2_JPH=FVL2_JPHFLX(U2TEMP,U2TEMPJP1,                           &
+     &                      TH(I,K,J-2,N),TH(I,K,J-1,N),                &
+     &             TH(I,K,J,N),TH(I,K,J+1,N),TH_P1(I,K,N),0)
+       FVL2_JMH=FVL2_JMHFLX(U2TEMP,U2TEMPJP1,                           &
+     &                      TH(I,K,J-2,N),TH(I,K,J-1,N),                &
+     &             TH(I,K,J,N),TH(I,K,J+1,N),TH_P1(I,K,N),0)
+       ELSE IF ((J.EQ.2).AND.(RANKY.GT.0)) THEN
+! J=0 [NY-1] ghost point undefined on interior grid; need to use the extra stencil point
+       FVL2_JPH=FVL2_JPHFLX(U2TEMP,U2TEMPJP1,                           &
+     &                      TH_M1(I,K,N),TH(I,K,J-1,N),                 &
+     &             TH(I,K,J,N),TH(I,K,J+1,N),TH(I,K,J+2,N),0)
+       FVL2_JMH=FVL2_JMHFLX(U2TEMP,U2TEMPJP1,                           &
+     &                      TH_M1(I,K,N),TH(I,K,J-1,N),                 &
+     &             TH(I,K,J,N),TH(I,K,J+1,N),TH(I,K,J+2,N),0)
+       ELSE
+! default behavior
+       FVL2_JPH=FVL2_JPHFLX(U2TEMP,U2TEMPJP1,                           &
+     &                      TH(I,K,J-2,N),TH(I,K,J-1,N),                &
+     &             TH(I,K,J,N),TH(I,K,J+1,N),TH(I,K,J+2,N),0)
+       FVL2_JMH=FVL2_JMHFLX(U2TEMP,U2TEMPJP1,                           &
+     &                      TH(I,K,J-2,N),TH(I,K,J-1,N),                &
+     &             TH(I,K,J,N),TH(I,K,J+1,N),TH(I,K,J+2,N),0)
+       END IF
+       END IF ! end VL2 logic
+       ELSE IF ((VADV_SCHEME.EQ.1).OR.(TIME_STEP.LE.10)) THEN
+       FVL2_JPH=(TH(I,K,J+1,N)+TH(I,K,J,N))/2.0d0
+       FVL2_JMH=(TH(I,K,J,N)+TH(I,K,J-1,N))/2.0d0
+       END IF
+! difference formula:
+       S1(I,K,J)=
+     &    (FVL2_JPH*(U2TEMPJP1)
+     &    -FVL2_JMH*(U2TEMP))/DYF(J)
+!          IF ((ISNAN(S1(I,K,J))).AND.(TIME_STEP.EQ.11)                  &
+!     &         .AND.(RK_STEP.EQ.1)) THEN
+!             IF (ISNAN(FVL2_JPH).OR.(ISNAN(FVL2_JMH))) THEN
+!             IF ((ISNAN(TH(I,K,J,N)))                                   &
+!     &           .OR.(ISNAN(TH(I,K,J+1,N)))) THEN
+!                WRITE(*,*) 'TH NAN: N,I,J,K',N,I,J,K
+!             ELSE
+!                WRITE(*,*) 'FLUX NAN: N,I,J,K,RANKY',N,I,J,K,RANKY
+!             END IF 
+!             END IF 
+!          END IF
           END DO
         END DO
       END DO
+#else
+! ********** compile without flux limits
+      DO J=JSTART_TH(N),JEND_TH(N)
+        DO K=0,NZP-1
+          DO I=0,NXM
+#ifdef BIO
+       IF ((N.EQ.5).AND.(FLAVOR.EQ.'WLT_BIO')) THEN
+            S1(I,K,J)=
+     &    (TH(I,K,J+1,N)*(U2(I,K,J+1)+U2DET(I,K,J+1)) +                 &
+     &      TH(I,K,J,N)*(U2(I,K,J+1)+U2DET(I,K,J+1))
+     &    -TH(I,K,J,N)*(U2(I,K,J)+U2DET(I,K,J))                         &
+     &    -TH(I,K,J-1,N)*(U2(I,K,J)+U2DET(I,K,J)))/(2.d0*DYF(J))
+      ELSE
+            S1(I,K,J)=
+     &    (TH(I,K,J+1,N)*U2(I,K,J+1) + TH(I,K,J,N)*U2(I,K,J+1)
+     &    -TH(I,K,J,N)*U2(I,K,J)-TH(I,K,J-1,N)*U2(I,K,J))/(2.d0*DYF(J))
+      END IF
+#else
+            S1(I,K,J)=
+     &    (TH(I,K,J+1,N)*U2(I,K,J+1) + TH(I,K,J,N)*U2(I,K,J+1)
+     &    -TH(I,K,J,N)*U2(I,K,J)-TH(I,K,J-1,N)*U2(I,K,J))/(2.d0*DYF(J))
+#endif
+          END DO
+        END DO
+      END DO
+#endif
       CALL FFT_XZ_TO_FOURIER(S1,CS1,0,NY+1)
       DO J=JSTART_TH(N),JEND_TH(N)
         DO K=0,TNKZ
@@ -718,6 +796,25 @@ C Now, build the explicit RHS terms for the passive scalar(s)
           END DO
         END DO
       END DO
+! Some debug code snippet 
+!           IF (ABS(PHI_JPH-1.0d0).GT.0.01d0) THEN
+!             WRITE(6,*) 'INTERIOR FLUX CORRECTION AT:'
+!             WRITE(6,*) 'RANKY:', RANKY
+!             WRITE(6,*) 'I,K,J:',I,K,J
+!             WRITE(6,*) 'PHI_JPH:',PHI_JPH
+!             WRITE(6,*) 'RVL2J:',RVL2J
+!             WRITE(6,*) 'FLVL2_JPH:',FLVL2_JPH
+!             WRITE(6,*) 'FHVL2_JPH:',FHVL2_JPH
+!          END IF 
+!          IF (ABS(PHI_JMH-1.0d0).GT.0.01d0) THEN
+!             WRITE(6,*) 'INTERIOR FLUX CORRECTION AT:'
+!             WRITE(6,*) 'RANKY:', RANKY
+!             WRITE(6,*) 'I,K,J:',I,K,J
+!             WRITE(6,*) 'PHI_JMH:',PHI_JMH
+!             WRITE(6,*) 'RVL2J:',RVL2J
+!             WRITE(6,*) 'FLVL2_JMH:',FLVL2_JMH
+!             WRITE(6,*) 'FHVL2_JMH:',FHVL2_JMH
+!          END IF 
 
 ! Add CFTH to the RHS vector CRTH
       DO J=JSTART_TH(N),JEND_TH(N)
@@ -756,7 +853,7 @@ C Now, build the explicit RHS terms for the passive scalar(s)
      &     -KAPPA_T(I,K,J,N)*(TH(I,K,J,N)-TH(I,K,J-1,N))/DY(J))/DYF(J))
           END DO
         END DO
-      END DO  
+      END DO
       END IF
 
 C -- Now, timestep the passive scalar equation --
@@ -822,7 +919,6 @@ C      which we have already made divergence free
              CALL THOMAS_REAL(MATL,MATD,MATU,VEC,NY+1,NXM)
 ! Apply the boundary conditions to our linear system
           END IF
-
         DO J=JSTART_TH(N)-1,JEND_TH(N)+1
           DO I=0,NXM
             TH(I,K,J,N)=VEC(I,J)
@@ -834,7 +930,7 @@ C      which we have already made divergence free
 
 ! End do number of passive scalars
         END DO
-        
+ 
 C Initialize the matrix to zeros to be used for implicit solves
 C Note that the system size is NY+1, but only 1..NY are used
 
@@ -955,16 +1051,14 @@ C Set the boundary conditions for U1
 C Now, solve the tridiagonal system for U1(:,k,:)
           CALL THOMAS_REAL(MATL,MATD,MATU,VEC,NY+1,NXM)
         END IF
-
         DO J=JSTART-1,JEND+1
           DO I=0,NXM
             U1(I,K,J)=VEC(I,J)
           END DO
         END DO
-
-! End do k
+! end k loop
       END DO
-
+     
 ! Initialize the matrix used to store implicit coefficients
       DO J=0,NY+1
         DO I=0,NXM
@@ -1029,7 +1123,6 @@ C Now, solve the tridiagonal system for U3(i,:,k)
       END DO
 
 C -- Done getting U1hat, U2hat, U3hat at new RK Step --
-
 C If we are on the final RK step, optionally update the timestep
 C based on the CFL criteria. This won't affect the current timestep
 C since the TEMP1, etc. variables have already been set using
@@ -1066,12 +1159,353 @@ C Note, here we divide by H_BAR since it was absorbed into PHI in REM_DIV
 
       ! Fix disparities at the boundary due to the thoms algorithm in parallel
       IF (USE_MPI) THEN
+! dan added this - need to synchronize the RK steps for communication of interior
+! points - should not be necessary
+         CALL mpi_barrier(MPI_COMM_WORLD,ierror)
+!
          CALL GHOST_CHAN_MPI
       END IF
 
       RETURN
       END
+#ifdef FLUX
+C----*|--.---------.---------.---------.---------.---------.---------.-|-------|
+      REAL*8 FUNCTION FVL2_JMHFLX(U2J,U2JP1,                            &
+     &                          THJM2,THJM1,THJ,THJP1,THJP2,            &
+     &                          WALLFLAG)
+C----*|--.---------.---------.---------.---------.---------.---------.-|-------|
+      IMPLICIT NONE
+      REAL*8 U2J,U2JP1
+      REAL*8 THJM2,THJM1,THJ,THJP1,THJP2
+      INTEGER WALLFLAG,LIMITER
+      REAL*8 RVL2J,RVL2JM1,RVL2JI
+      REAL*8 FHVL2_JMH,FLVL2_JMH
+      REAL*8 PHI_JMH
+      LIMITER=1 
+      ! INTERIOR
+      IF (WALLFLAG.EQ.0) THEN  ! INTERIOR POINTS
+! J
+      IF (((THJ-THJM1).EQ.0.0d0).AND.                                   &
+     &    ((THJP1-THJ).EQ.0.0d0)) THEN
+      RVL2J=0.0d0
+      RVL2JI=0.0d0
+      ELSE IF (((THJ-THJM1).GT.0.0d0).AND.                              &
+     &    ((THJP1-THJ).EQ.0.0d0)) THEN
+      RVL2J=9999.9d0
+      RVL2JI=1.0d0/RVL2J
+      ELSE IF (((THJ-THJM1).LT.0.0d0).AND.                              &
+     &    ((THJP1-THJ).EQ.0.0d0)) THEN
+      RVL2J=-9999.9d0
+      RVL2JI=1.0d0/RVL2J
+      ELSE IF (((THJ-THJM1).EQ.0.0d0).AND.                              &
+     &    ((THJP1-THJ).GT.0.0d0)) THEN
+      RVL2J=0.0001d0
+      RVL2JI=1.0d0/RVL2J
+      ELSE IF (((THJ-THJM1).EQ.0.0d0).AND.                              &
+     &    ((THJP1-THJ).LT.0.0d0)) THEN
+      RVL2J=-0.0001d0
+      RVL2JI=1.0d0/RVL2J
+      ELSE
+      RVL2J=(THJ-THJM1)/(THJP1-THJ)
+      RVL2JI=1.0d0/RVL2J
+      END IF
+! JM1
+      IF (((THJM1-THJM2).EQ.0.0d0).AND.                                 &
+     &    ((THJ-THJM1).EQ.0.0d0)) THEN
+      RVL2JM1=0.0001d0
+      ELSE IF (((THJM1-THJM2).GT.0.0d0).AND.                            &
+     &    ((THJ-THJM1).EQ.0.0d0)) THEN
+      RVL2JM1=9999.9d0
+      ELSE IF (((THJM1-THJM2).LT.0.0d0).AND.                            &
+     &    ((THJ-THJM1).EQ.0.0d0)) THEN
+      RVL2JM1=-9999.9d0
+      ELSE IF (((THJM1-THJM2).EQ.0.0d0).AND.                            &
+     &    ((THJ-THJM1).GT.0.0d0)) THEN
+      RVL2JM1=0.0001d0
+      ELSE IF (((THJM1-THJM2).EQ.0.0d0).AND.                            &
+     &    ((THJ-THJM1).LT.0.0d0)) THEN
+      RVL2JM1=-0.0001d0
+      ELSE
+      RVL2JM1=(THJM1-THJM2)/(THJ-THJM1)
+      END IF
 
+      ! just inside top
+      ELSE IF (WALLFLAG.EQ.1) THEN ! NY-1 just inside the top point
+! J
+      IF (THJ.GE.0.0d0) THEN
+      IF ((THJ-THJM1).EQ.0) THEN
+      RVL2J=0.0001d0
+      RVL2JI=0.0001d0
+      ELSE
+      RVL2J=(THJ-THJM1)/                                                &
+     &        MAX(THJ-THJM1,-THJ)
+      RVL2JI=1.0d0/RVL2J
+      END IF
+      ELSE IF (THJ.LT.0.0d0) THEN
+      IF ((THJ-THJM1).EQ.0.0d0) THEN
+      RVL2J=0.0001d0
+      RVL2JI=0.0001d0
+      ELSE
+      RVL2J=(THJ-THJM1)/                                                &
+     &        MIN(THJ-THJM1,-THJ)
+      RVL2JI=1.0d0/RVL2J
+      END IF
+      END IF
+! JM1
+      IF (((THJM1-THJM2).EQ.0.0d0).AND.                                 &
+     &    ((THJ-THJM1).EQ.0.0d0)) THEN
+      RVL2JM1=0.0001d0
+      ELSE IF (((THJM1-THJM2).GT.0.0d0).AND.                            &
+     &    ((THJ-THJM1).EQ.0.0d0)) THEN
+      RVL2JM1=9999.9d0
+      ELSE IF (((THJM1-THJM2).LT.0.0d0).AND.                            &
+     &    ((THJ-THJM1).EQ.0.0d0)) THEN
+      RVL2JM1=-9999.9d0
+      ELSE IF (((THJM1-THJM2).EQ.0.0d0).AND.                            &
+     &    ((THJ-THJM1).GT.0.0d0)) THEN
+      RVL2JM1=0.0001d0
+      ELSE IF (((THJM1-THJM2).EQ.0.0d0).AND.                            &
+     &    ((THJ-THJM1).LT.0.0d0)) THEN
+      RVL2JM1=-0.0001d0
+      ELSE
+      RVL2JM1=(THJM1-THJM2)/(THJ-THJM1)
+      END IF
+
+      ! just inside bottom
+      ELSE IF (WALLFLAG.EQ.2) THEN ! J=3 just inside bottom 
+! J
+      IF (((THJ-THJM1).EQ.0.0d0).AND.                                   &
+     &    ((THJP1-THJ).EQ.0.0d0)) THEN
+      RVL2J=0.0d0
+      RVL2JI=0.0d0
+      ELSE IF (((THJ-THJM1).GT.0.0d0).AND.                              &
+     &    ((THJP1-THJ).EQ.0.0d0)) THEN
+      RVL2J=9999.9d0
+      RVL2JI=1.0d0/RVL2J
+      ELSE IF (((THJ-THJM1).LT.0.0d0).AND.                              &
+     &    ((THJP1-THJ).EQ.0.0d0)) THEN
+      RVL2J=-9999.9d0
+      RVL2JI=1.0d0/RVL2J
+      ELSE IF (((THJ-THJM1).EQ.0.0d0).AND.                              &
+     &    ((THJP1-THJ).GT.0.0d0)) THEN
+      RVL2J=0.0001d0
+      RVL2JI=1.0d0/RVL2J
+      ELSE IF (((THJ-THJM1).EQ.0.0d0).AND.                              &
+     &    ((THJP1-THJ).LT.0.0d0)) THEN
+      RVL2J=-0.0001d0
+      RVL2JI=1.0d0/RVL2J
+      ELSE
+      RVL2J=(THJ-THJM1)/(THJP1-THJ)
+      RVL2JI=1.0d0/RVL2J
+      END IF
+
+! JM1
+      IF (THJM1.GE.0.0d0) THEN
+      IF ((THJ-THJM1).EQ.0.0d0) THEN
+      RVL2JM1=0.0001d0
+      ELSE
+      RVL2JM1=MIN(THJ-THJM1,THJM1)/                                     &
+     &           (THJ-THJM1)
+      END IF
+      ELSE IF (THJM1.LT.0.0d0) THEN
+      IF ((THJ-THJM1).EQ.0.0d0) THEN
+      RVL2JM1=0.0001d0
+      ELSE
+      RVL2JM1=MAX(THJ-THJM1,THJM1)/                                     &
+     &           (THJ-THJM1)
+      END IF
+      END IF
+
+      END IF
+
+      !WRITE(*,*),'RVL2J JMH',RVL2J,RVL2JI,RVL2JM1
+      IF (U2J.GE.0.0d0) THEN
+          FLVL2_JMH=THJM1
+          IF (LIMITER.EQ.1) THEN
+          PHI_JMH=(RVL2JM1+ABS(RVL2JM1))/(1.0d0+ABS(RVL2JM1))
+          ELSEIF (LIMITER.EQ.2) THEN
+          PHI_JMH=MAX(0.0d0,MIN(1.0d0,RVL2JM1))
+          END IF
+      ELSE
+          FLVL2_JMH=THJ
+          IF (LIMITER.EQ.1) THEN
+          PHI_JMH=(RVL2JI+ABS(RVL2JI))                                  &
+     &             /(1.0d0+ABS(RVL2JI))
+          ELSE IF (LIMITER.EQ.2) THEN
+          PHI_JMH=MAX(0.0d0,MIN(1.0d0,RVL2JI))
+          END IF 
+      END IF
+      !WRITE(*,*) 'PHI_JMH',PHI_JMH
+      FHVL2_JMH=(THJ+THJM1)/2.0d0
+      FVL2_JMHFLX=FLVL2_JMH+PHI_JMH*(FHVL2_JMH-FLVL2_JMH)
+      RETURN
+      END
+
+C----*|--.---------.---------.---------.---------.---------.---------.-|-------|
+      REAL*8 FUNCTION FVL2_JPHFLX(U2J,U2JP1,                            &
+     &                          THJM2,THJM1,THJ,THJP1,THJP2,WALLFLAG)
+C----*|--.---------.---------.---------.---------.---------.---------.-|-------|
+      IMPLICIT NONE
+      REAL*8 U2J,U2JP1
+      REAL*8 THJM2,THJM1,THJ,THJP1,THJP2
+      INTEGER WALLFLAG,LIMITER
+      REAL*8 RVL2J,RVL2JP1,RVL2JP1I
+      REAL*8 FHVL2_JPH,FLVL2_JPH
+      REAL*8 PHI_JPH
+      LIMITER=1
+      IF (WALLFLAG.EQ.0) THEN
+! J
+      IF (((THJ-THJM1).EQ.0.0d0).AND.                                   &
+     &    ((THJP1-THJ).EQ.0.0d0)) THEN
+      RVL2J=0.0d0
+      ELSE IF (((THJ-THJM1).GT.0.0d0).AND.                              &
+     &    ((THJP1-THJ).EQ.0.0d0)) THEN
+      RVL2J=9999.9d0
+      ELSE IF (((THJ-THJM1).LT.0.0d0).AND.                              &
+     &    ((THJP1-THJ).EQ.0.0d0)) THEN
+      RVL2J=-9999.9d0
+      ELSE IF (((THJ-THJM1).EQ.0.0d0).AND.                              &
+     &    ((THJP1-THJ).GT.0.0d0)) THEN
+      RVL2J=0.0001d0
+      ELSE IF (((THJ-THJM1).EQ.0.0d0).AND.                              &
+     &    ((THJP1-THJ).LT.0.0d0)) THEN
+      RVL2J=-0.0001d0
+      ELSE
+      RVL2J=(THJ-THJM1)/(THJP1-THJ)
+      END IF
+! JP1
+      IF (((THJP1-THJ).EQ.0.0d0).AND.                                   &
+     &    ((THJP2-THJP1).EQ.0.0d0)) THEN
+      RVL2JP1=0.0d0
+      RVL2JP1I=0.0d0
+      ELSE IF (((THJP1-THJ).GT.0.0d0).AND.                              &
+     &    ((THJP2-THJP1).EQ.0.0d0)) THEN
+      RVL2JP1=9999.9d0
+      RVL2JP1I=1.0d0/RVL2JP1
+      ELSE IF (((THJP1-THJ).LT.0.0d0).AND.                              &
+     &    ((THJP2-THJP1).EQ.0.0d0)) THEN
+      RVL2JP1=-9999.9d0
+      RVL2JP1I=1.0d0/RVL2JP1
+      ELSE IF (((THJP1-THJ).EQ.0.0d0).AND.                              &
+     &    ((THJP2-THJP1).GT.0.0d0)) THEN
+      RVL2JP1=0.0001d0
+      RVL2JP1I=1.0d0/RVL2JP1
+      ELSE IF (((THJP1-THJ).EQ.0.0d0).AND.                              &
+     &    ((THJP2-THJP1).LT.0.0d0)) THEN
+      RVL2JP1=-0.0001d0
+      RVL2JP1I=1.0d0/RVL2JP1
+      ELSE
+      RVL2JP1=(THJP1-THJ)/(THJP2-THJP1)
+      RVL2JP1I=1.0d0/RVL2JP1
+      END IF
+
+      ELSE IF (WALLFLAG.EQ.1) THEN
+      ! NY-2 just inside the top
+! J
+      IF (((THJ-THJM1).EQ.0.0d0).AND.                                   &
+     &    ((THJP1-THJ).EQ.0.0d0)) THEN
+      RVL2J=0.0d0
+      ELSE IF (((THJ-THJM1).GT.0.0d0).AND.                              &
+     &    ((THJP1-THJ).EQ.0.0d0)) THEN
+      RVL2J=9999.9d0
+      ELSE IF (((THJ-THJM1).LT.0.0d0).AND.                              &
+     &    ((THJP1-THJ).EQ.0.0d0)) THEN
+      RVL2J=-9999.9d0
+      ELSE IF (((THJ-THJM1).EQ.0.0d0).AND.                              &
+     &    ((THJP1-THJ).GT.0.0d0)) THEN
+      RVL2J=0.0001d0
+      ELSE IF (((THJ-THJM1).EQ.0.0d0).AND.                              &
+     &    ((THJP1-THJ).LT.0.0d0)) THEN
+      RVL2J=-0.0001d0
+      ELSE
+      RVL2J=(THJ-THJM1)/(THJP1-THJ)
+      END IF
+
+      IF (THJP1.GE.0.0d0) THEN
+      IF ((THJP1-THJ).EQ.0.0d0) THEN
+      RVL2JP1=0.0001d0
+      RVL2JP1I=0.0001d0
+      ELSE
+      RVL2JP1=(THJP1-THJ)/MAX(THJP1-THJ,-THJP1)
+      RVL2JP1I=1.0d0/RVL2JP1
+      END IF
+      ELSE
+      IF ((THJP1-THJ).EQ.0.0d0) THEN
+      RVL2JP1=0.0001d0
+      RVL2JP1I=0.0001d0
+      ELSE
+      RVL2JP1=(THJP1-THJ)/MIN(THJP1-THJ,-THJP1)
+      RVL2JP1I=1.0d0/RVL2JP1
+      END IF
+      END IF
+
+      ELSEIF (WALLFLAG.EQ.2) THEN
+      ! J=2 just inside the bottom
+! JP1
+      IF (((THJP1-THJ).EQ.0.0d0).AND.                                   &
+     &    ((THJP2-THJP1).EQ.0.0d0)) THEN
+      RVL2JP1=0.0d0
+      RVL2JP1I=0.0d0
+      ELSE IF (((THJP1-THJ).GT.0.0d0).AND.                              &
+     &    ((THJP2-THJP1).EQ.0.0d0)) THEN
+      RVL2JP1=9999.9d0
+      RVL2JP1I=1.0d0/RVL2JP1
+      ELSE IF (((THJP1-THJ).LT.0.0d0).AND.                              &
+     &    ((THJP2-THJP1).EQ.0.0d0)) THEN
+      RVL2JP1=-9999.9d0
+      RVL2JP1I=1.0d0/RVL2JP1
+      ELSE IF (((THJP1-THJ).EQ.0.0d0).AND.                              &
+     &    ((THJP2-THJP1).GT.0.0d0)) THEN
+      RVL2JP1=0.0001d0
+      RVL2JP1I=1.0d0/RVL2JP1
+      ELSE IF (((THJP1-THJ).EQ.0.0d0).AND.                              &
+     &    ((THJP2-THJP1).LT.0.0d0)) THEN
+      RVL2JP1=-0.0001d0
+      RVL2JP1I=1.0d0/RVL2JP1
+      ELSE
+      RVL2JP1=(THJP1-THJ)/(THJP2-THJP1)
+      RVL2JP1I=1.0d0/RVL2JP1
+      END IF
+! J
+      IF (THJ.GE.0.0d0) THEN
+      IF ((THJP1-THJ).EQ.0.0d0) THEN
+      RVL2J=0.0001d0
+      ELSE
+      RVL2J=MIN(THJP1-THJ,THJ)/(THJP1-THJ)
+      END IF
+      ELSE
+      IF ((THJP1-THJ).EQ.0.0d0) THEN
+      RVL2J=0.0001d0
+      ELSE
+      RVL2J=MAX(THJP1-THJ,THJ)/(THJP1-THJ)
+      END IF
+      END IF
+
+      END IF
+! low order if no gradient
+!      WRITE(*,*) 'RVL2JP1 JPH', RVL2J,RVL2JP1,RVL2JP1I
+
+      IF (U2JP1.GE.0.0d0) THEN
+      FLVL2_JPH=THJ
+      IF (LIMITER.EQ.1) THEN
+      PHI_JPH=(RVL2J+ABS(RVL2J))/(1.0d0+ABS(RVL2J))
+      ELSE IF (LIMITER.EQ.2) THEN
+      PHI_JPH=MAX(0.0d0,MIN(1.0d0,RVL2J))
+      END IF
+      ELSE
+      FLVL2_JPH=THJP1
+      IF (LIMITER.EQ.1) THEN
+      PHI_JPH=(RVL2JP1I+ABS(RVL2JP1I))/(1.0d0+ABS(RVL2JP1I))
+      ELSE IF (LIMITER.EQ.2) THEN
+      PHI_JPH=MAX(0.0d0,MIN(1.0d0,RVL2JP1I))
+      END IF
+      END IF
+      !WRITE(*,*) 'PHI JPH',PHI_JPH 
+      FHVL2_JPH=(THJP1+THJ)/2.0d0
+      FVL2_JPHFLX=FLVL2_JPH+PHI_JPH*(FHVL2_JPH-FLVL2_JPH)
+      RETURN
+      END
+#endif 
 C----*|--.---------.---------.---------.---------.---------.---------.-|-------|
       SUBROUTINE RK_CHAN_2
 C----*|--.---------.---------.---------.---------.---------.---------.-|-------|
@@ -1476,7 +1910,7 @@ C Read input file.
       READ(11,*) 
       READ(11,*) LES_MODEL_TYPE
       READ(11,*)
-      READ(11,*) IC_TYPE, KICK
+      READ(11,*) IC_TYPE, KICK, BC_TYPE
       READ(11,*)
       READ(11,*) I_RO
       READ(11,*) 
@@ -1654,8 +2088,6 @@ C Define grid spacing
          RETURN 
          END
 
-
- 
 C----*|--.---------.---------.---------.---------.---------.---------.-|------
       SUBROUTINE APPLY_BC_1_LOWER(MATL,MATD,MATU,VEC)
 C----*|--.---------.---------.---------.---------.---------.---------.-|-----
@@ -1755,7 +2187,7 @@ C Dirichlet
           MATL(I,NY)=0.
           MATD(I,NY)=1.
           MATU(I,NY)=0.
-          VEC(I,NY)=U_BC_YMAX_C1
+          VEC(I,NY)=U_BC_YMAX_VAL
         END DO
       ELSE
 C Neumann
@@ -1763,7 +2195,7 @@ C Neumann
           MATL(I,NY)=-1.
           MATD(I,NY)=1.
           MATU(I,NY)=0.
-          VEC(I,NY)=DY(NY)*U_BC_YMAX_C1
+          VEC(I,NY)=DY(NY)*U_BC_YMAX_VAL
         END DO
         DO I=0,NXM
           MATL(I,NY+1)=0.
@@ -1795,7 +2227,7 @@ C Dirichlet
           MATL_C(I,NY)=0.
           MATD_C(I,NY)=1.
           MATU_C(I,NY)=0.
-          VEC_C(I,NY)=U_BC_YMAX_C1
+          VEC_C(I,NY)=U_BC_YMAX_VAL
         END DO
       ELSE
 C Neumann
@@ -1809,7 +2241,7 @@ C Neumann
           MATL_C(I,NY)=-1.
           MATD_C(I,NY)=1.
           MATU_C(I,NY)=0.
-          VEC_C(I,NY)=DY(NY)*U_BC_YMAX_C1
+          VEC_C(I,NY)=DY(NY)*U_BC_YMAX_VAL
         END DO
 
       END IF
@@ -2061,7 +2493,7 @@ C Dirichlet
           MATL(I,NY)=0.
           MATD(I,NY)=1.
           MATU(I,NY)=0.
-          VEC(I,NY)=W_BC_YMAX_C1
+          VEC(I,NY)=W_BC_YMAX_VAL
         END DO
       ELSE
 C Neumann
@@ -2069,7 +2501,7 @@ C Neumann
           MATL(I,NY)=-1.
           MATD(I,NY)=1.
           MATU(I,NY)=0.
-          VEC(I,NY)=DY(NY)*W_BC_YMAX_C1
+          VEC(I,NY)=DY(NY)*W_BC_YMAX_VAL
         END DO
         DO I=0,NXM
           MATL(I,NY+1)=0.
@@ -2102,7 +2534,7 @@ C Dirichlet
           MATL_C(I,NY)=0.
           MATD_C(I,NY)=1.
           MATU_C(I,NY)=0.
-          VEC_C(I,NY)=W_BC_YMAX_C1
+          VEC_C(I,NY)=W_BC_YMAX_VAL
         END DO
       ELSE
 C Neumann
@@ -2110,7 +2542,7 @@ C Neumann
           MATL_C(I,NY)=-1.
           MATD_C(I,NY)=1.
           MATU_C(I,NY)=0.
-          VEC_C(I,NY)=DY(NY)*W_BC_YMAX_C1
+          VEC_C(I,NY)=DY(NY)*W_BC_YMAX_VAL
         END DO
         DO I=0,NKX
           MATL_C(I,NY+1)=0.
@@ -2154,9 +2586,9 @@ C----*|--.---------.---------.---------.---------.---------.---------.-|--
         end do
         do i=0,NXM
           MATL(i,0)=0.
-          MATD(i,0)=1.
-          MATU(i,0)=0.
-          VEC(i,0)=0.
+          MATD(i,0)=-1.
+          MATU(i,0)=1.
+          VEC(i,0)=DY(1)*TH_BC_YMIN_C1(N)
         end do
       end if
       RETURN
@@ -2218,7 +2650,7 @@ C----*|--.---------.---------.---------.---------.---------.---------.-|--
           MATL(i,NY)=0.
           MATD(i,NY)=1.
           MATU(i,NY)=0.
-          VEC(i,NY)=TH_BC_YMAX_C1(N)
+          VEC(i,NY)=TH_BC_YMAX_VAL(N)
         end do
       else
 ! Neumann
@@ -2227,7 +2659,7 @@ C----*|--.---------.---------.---------.---------.---------.---------.-|--
           MATL(i,NY)=-1.
           MATD(i,NY)=1.
           MATU(i,NY)=0.
-          VEC(i,NY)=DY(NY)*TH_BC_YMAX_C1(N)
+          VEC(i,NY)=DY(NY)*TH_BC_YMAX_VAL(N)
         end do
         do i=0,NXM
           MATL(i,NY+1)=0.
@@ -2257,7 +2689,7 @@ C----*|--.---------.---------.---------.---------.---------.---------.-|--
           MATL_C(i,NY)=0.
           MATD_C(i,NY)=1.
           MATU_C(i,NY)=0.
-          VEC_C(i,NY)=TH_BC_YMAX_C1(N)
+          VEC_C(i,NY)=TH_BC_YMAX_VAL(N)
         end do
       else
 ! Neumann
@@ -2267,7 +2699,7 @@ C----*|--.---------.---------.---------.---------.---------.---------.-|--
           MATL_C(i,NY)=-1.
           MATD_C(i,NY)=1.
           MATU_C(i,NY)=0.
-          VEC_C(i,NY)=DY(NY)*TH_BC_YMAX_C1(N)
+          VEC_C(i,NY)=DY(NY)*TH_BC_YMAX_VAL(N)
         end do
         do i=0,NKX
           MATL_C(i,NY+1)=0.
@@ -2374,7 +2806,6 @@ C Neumann
            CU2(0,0,1)=CU2(0,0,2)-DYF(1)*V_BC_YMIN_C1 
            CU2(0,0,0)=CU2(0,0,1)-DYF(1)*V_BC_YMIN_C1 
          END IF
-
       ELSE IF (V_BC_YMIN.EQ.2) THEN
 C Upstream-travelling wave proposed by Speyer/Kim
 C (initialize as zero)
@@ -2407,8 +2838,8 @@ C Start with zero
          END DO
 C Now, set only the mean
          IF (RANKZ.EQ.0) THEN
-           CU1(0,0,NY)=U_BC_YMAX_C1
-           CU1(0,0,NY+1)=U_BC_YMAX_C1
+           CU1(0,0,NY)=U_BC_YMAX_VAL
+           CU1(0,0,NY+1)=U_BC_YMAX_VAL
          END IF
       ELSE IF (U_BC_YMAX.EQ.1) THEN
 C Neumann
@@ -2420,8 +2851,8 @@ C Neumann
          END DO
 C Now, Apply BC to mean
          IF (RANKZ.EQ.0) THEN
-           CU1(0,0,NY)=CU1(0,0,NY-1)+DY(NY)*U_BC_YMAX_C1
-           CU1(0,0,NY+1)=CU1(0,0,NY)+DY(NY)*U_BC_YMAX_C1
+           CU1(0,0,NY)=CU1(0,0,NY-1)+DY(NY)*U_BC_YMAX_VAL
+           CU1(0,0,NY+1)=CU1(0,0,NY)+DY(NY)*U_BC_YMAX_VAL
          END IF
       ELSE
          STOP 'Error: U_BC_YMAX must be 0, or 1'
@@ -2438,8 +2869,8 @@ C Start with zero
          END DO
 C Now, set only the mean
          IF (RANKZ.EQ.0) THEN
-           CU3(0,0,NY)=W_BC_YMAX_C1
-           CU3(0,0,NY+1)=W_BC_YMAX_C1
+           CU3(0,0,NY)=W_BC_YMAX_VAL
+           CU3(0,0,NY+1)=W_BC_YMAX_VAL
          END IF
 C Ghost cell not used
          CU3(0,0,NY+1)=0.d0
@@ -2453,8 +2884,8 @@ C Neumann
          END DO
 C Now, Apply BC to mean
          IF (RANKZ.EQ.0) THEN
-           CU3(0,0,NY)=CU3(0,0,NY-1)+DY(NY)*W_BC_YMAX_C1
-           CU3(0,0,NY+1)=CU3(0,0,NY)+DY(NY)*W_BC_YMAX_C1
+           CU3(0,0,NY)=CU3(0,0,NY-1)+DY(NY)*W_BC_YMAX_VAL
+           CU3(0,0,NY+1)=CU3(0,0,NY)+DY(NY)*W_BC_YMAX_VAL
          END IF
       ELSE
         STOP 'Error: W_BC_YMAX must be 0, or 1'
@@ -2490,6 +2921,8 @@ C (initialize as zero gradient)
 
       RETURN
       END
+
+
 
 C----*|--.---------.---------.---------.---------.---------.---------.-|--
       SUBROUTINE APPLY_BC_VEL_PHYS_LOWER
@@ -2586,16 +3019,16 @@ C Dirichlet
 C Start with zero
         DO K=0,NZP-1
           DO I=0,NXM
-             U1(I,K,NY)=U_BC_YMAX_C1
-             U1(I,K,NY+1)=U_BC_YMAX_C1
+             U1(I,K,NY)=U_BC_YMAX_VAL
+             U1(I,K,NY+1)=U_BC_YMAX_VAL
            END DO
          END DO
       ELSE IF (U_BC_YMAX.EQ.1) THEN
 C Neumann
         DO K=0,NZP-1
           DO I=0,NXM
-             U1(I,K,NY)=U1(I,K,NY-1)+DY(NY)*U_BC_YMAX_C1
-             U1(I,K,NY+1)=U1(I,K,NY)+DY(NY)*U_BC_YMAX_C1
+             U1(I,K,NY)=U1(I,K,NY-1)+DY(NY)*U_BC_YMAX_VAL
+             U1(I,K,NY+1)=U1(I,K,NY)+DY(NY)*U_BC_YMAX_VAL
            END DO
          END DO
       ELSE
@@ -2607,16 +3040,16 @@ C Dirichlet
 C Start with zero
         DO K=0,NZP-1
           DO I=0,NXM
-             U3(I,K,NY)=W_BC_YMAX_C1
-             U3(I,K,NY+1)=W_BC_YMAX_C1
+             U3(I,K,NY)=W_BC_YMAX_VAL
+             U3(I,K,NY+1)=W_BC_YMAX_VAL
            END DO
          END DO
       ELSE IF (W_BC_YMAX.EQ.1) THEN
 C Neumann
         DO K=0,NZP-1
           DO I=0,NXM
-             U3(I,K,NY)=U3(I,K,NY-1)+DY(NY)*W_BC_YMAX_C1
-             U3(I,K,NY+1)=U3(I,K,NY)+DY(NY)*W_BC_YMAX_C1
+             U3(I,K,NY)=U3(I,K,NY-1)+DY(NY)*W_BC_YMAX_VAL
+             U3(I,K,NY+1)=U3(I,K,NY)+DY(NY)*W_BC_YMAX_VAL
            END DO
          END DO
       ELSE
@@ -2648,6 +3081,9 @@ C         IF (RANKZ.EQ.0) CU2(0,0,NY+1)=-CU2(0,0,NY)
 
       RETURN
       END
+
+
+
 
 C----*|--.---------.---------.---------.---------.---------.---------.-|-------|
       SUBROUTINE THOMAS_REAL(A,B,C,G,NY,NX)

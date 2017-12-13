@@ -1,0 +1,45 @@
+12a13
+> 
+14,18c15,16
+<       IF (TIME_STEP.lt.5) THEN
+<       dt=1.0d-2
+<       ELSE
+<       dt=30.d0
+<       END IF
+---
+>       dt=999.d0
+> 
+36,54c34
+<       if ((N_TH.gt.0).and.(I_RO.NE.0)) then
+< ! If we have rotating flow with scalar advection, add in thermal wind
+<       do n=1,N_TH
+<       do j=JSTART,JEND-1
+<         do k=0,NZP-1
+<           do i=0,NXM
+<             dt_x=cfl*dx(i)/abs(U1(i,k,j)-1.0d0*DRHODZ(N)*RI(N)
+<      &                          *GYF(j)/I_RO+0.5d0*DRHODZ(N)*RI(N)
+<      &                          *LY/I_RO)
+<             dt_y=cfl*dy(j)/abs(U2(i,k,j))
+<             dt_z=cfl*dz(k)/abs(U3(i,k,j)+(RI(N)/I_RO)
+<      &                          *DRHODX(N)*GYF(j)-0.5d0*(RI(N)/I_RO)
+<      &                          *DRHODX(N)*LY)
+<             dt=min(dt,dt_x,dt_y,dt_z)
+<            end do
+<          end do
+<       end do
+<       end do
+<       else
+---
+> ! Use the model velocity to calculate the CFL number
+65d44
+<       end if
+74,75c53,54
+<         DELTA_T=0.000001d0
+<       else if (dt.ge.99.) then
+---
+>         DELTA_T=0.0001d0
+>       else if (dt.ge.999.) then
+77c56
+<         DELTA_T=99.d0
+---
+>         DELTA_T=999.d0

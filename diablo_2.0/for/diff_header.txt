@@ -1,0 +1,94 @@
+73d72
+<       INTEGER BC_TYPE
+82,83c81
+<       INTEGER VADV_SCHEME 
+<       LOGICAL VARIABLE_DT,FIRST_TIME,ANA_FRC
+---
+>       LOGICAL VARIABLE_DT,FIRST_TIME 
+113d110
+<      &  BC_TYPE,
+115,116c112
+<      &  UPDATE_DT,VADV_SCHEME,VARIABLE_DT,
+<      &  FIRST_TIME,ANA_FRC,USE_MPI,
+---
+>      &  UPDATE_DT,VARIABLE_DT,FIRST_TIME,USE_MPI,
+120,121d115
+<       REAL*8  U_BC_YMAX_VAL, W_BC_YMAX_VAL
+<       REAL*8  TH_BC_YMAX_VAL(1:N_TH)
+124,125d117
+<      &        U_BC_YMAX_VAL, W_BC_YMAX_VAL,
+<      &        TH_BC_YMAX_VAL,
+176d167
+<       REAL*8 PRM1_T (0:NX+1,0:NZP+1,0:NY+1,1:N_TH)
+179c170
+<      &   NU_T,KAPPA_T,PRM1_T,LES_MODEL_TYPE,J1,J2,LES
+---
+>      &   NU_T,KAPPA_T,LES_MODEL_TYPE,J1,J2,LES
+228,229c219
+<      &        S1 (0:NX+1,0:NZP+1,0:NY+1),
+<      &        S2 (0:NX+1,0:NZP+1,0:NY+1),
+---
+>      &        S1 (0:NX+1,0:NZP+1,0:NY+1), 
+231c221
+<      &        FTH (0:NX+1,0:NZP+1,0:NY+1,1:N_TH),
+---
+>      &        FTH (0:NX+1,0:NZP+1,0:NY+1,1:N_TH), 
+243,244c233,234
+<      &           CU2(0:NXP,0:NZ+1,0:NY+1),
+<      &           CU3(0:NXP,0:NZ+1,0:NY+1),
+---
+>      &           CU2(0:NXP,0:NZ+1,0:NY+1), 
+>      &           CU3(0:NXP,0:NZ+1,0:NY+1), 
+246c236
+<      &           CR1(0:NXP,0:NZ+1,0:NY+1),
+---
+>      &           CR1(0:NXP,0:NZ+1,0:NY+1), 
+248c238
+<      &           CR3(0:NXP,0:NZ+1,0:NY+1),
+---
+>      &           CR3(0:NXP,0:NZ+1,0:NY+1), 
+250c240
+<      &           CF2(0:NXP,0:NZ+1,0:NY+1),
+---
+>      &           CF2(0:NXP,0:NZ+1,0:NY+1), 
+252,253c242
+<      &           CS1(0:NXP,0:NZ+1,0:NY+1),
+<      &           CS2(0:NXP,0:NZ+1,0:NY+1),
+---
+>      &           CS1(0:NXP,0:NZ+1,0:NY+1), 
+255c244
+<      &           CFTH(0:NXP,0:NZ+1,0:NY+1,1:N_TH),
+---
+>      &           CFTH(0:NXP,0:NZ+1,0:NY+1,1:N_TH), 
+269d257
+<      &          , (S2,CS2)
+274,275c262
+<       COMMON /GLOBAL_VARS/ U1,U2,U3,P,R1,R2,R3,F1,F2,F3,S1,S2,TH,
+<      &                  FTH,RTH
+---
+>       COMMON /GLOBAL_VARS/ U1,U2,U3,P,R1,R2,R3,F1,F2,F3,S1,TH,FTH,RTH
+287d273
+<       REAL*8 NUTDUDY(0:NY+1),NUTDWDY(0:NY+1),NUTDUGDY(0:NY+1)
+293c279
+<       REAL*8 PE_DISS(0:NY+1,1:N_TH),KAPPADTHDY(0:NY+1,1:N_TH)
+---
+>       REAL*8 PE_DISS(0:NY+1,1:N_TH)
+316,331c302
+< !----*|--.---------.---------.---------.---------.---------.---------.-|-------|
+< ! WLT 2016 biogeochemical rate parameters 
+< !----*|--.---------.---------.---------.---------.---------.---------.-|-------|
+<       REAL*8 KWLIGHT,ALPHALIGHT,I0LIGHT,
+<      &       VMNUT,KNNUT,SIGMADPHY,
+<      &       IVLEVZOO,RZOO,GAMMANZOO,ZETAZOO,
+<      &       ZETA2ZOO,DELTADET,WDET,DEEPN,NUDGETS
+<       REAL*8  PAR (0:NX+1,0:NZP+1,0:NY+1), U2DET (0:NX+1,0:NZP+1,0:NY+1)
+<       COMMON /WLT_BIO_VARS/ KWLIGHT,ALPHALIGHT,I0LIGHT,VMNUT,
+<      &         KNNUT,SIGMADPHY,IVLEVZOO,RZOO,GAMMANZOO,ZETAZOO,
+<      &         ZETA2ZOO,DELTADET,WDET,DEEPN,NUDGETS,PAR,U2DET
+< !----*|--.---------.---------.---------.---------.---------.---------.-|-------|
+< ! VL2 Advection scheme variables 
+< !----*|--.---------.---------.---------.---------.---------.---------.-|-------|
+<       REAL*8 TH_M1(0:NX+1,0:NZP+1,1:N_TH),TH_P1(0:NX+1,0:NZP+1,1:N_TH)
+<       COMMON /VL2_ADV_VARS/ TH_M1,TH_P1
+---
+> 

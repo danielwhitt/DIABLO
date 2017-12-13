@@ -1,0 +1,9 @@
+15,17d14
+< ! Variables for variable turbulent prandtl number 
+<       REAL*8 Rig(0:NX+1,0:NZP+1,0:NY+1)
+< 
+40,41c37
+<       COMMON /LES_VARS_2/ Sij1, Sij2, Sij3, Sij4, Sij5, Sij6, TEMP,
+<      &                    Rig
+---
+>       COMMON /LES_VARS_2/ Sij1, Sij2, Sij3, Sij4, Sij5, Sij6, TEMP

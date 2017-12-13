@@ -14,6 +14,7 @@
  disp('1) High resolution at both ends (tanh stretching function)');
  disp('2) High resolution in center (tanh stretching function)');
  disp('3) High resolution at both ends (starting at 0)');
+ disp('4) High resolution at top (starting at 0)');
  GRID_TYPE=input('Select a grid type: ');
 
 % Set the dimensions of the grid 
@@ -39,6 +40,12 @@ elseif (GRID_TYPE==3)
   % Closed Channel
   for J=1:N+1
     G(J+1)=(L/2.0)*tanh(CS*((2.0*(J-1))/(N)-1.0))/tanh(CS)+L/2.0;
+  end
+elseif (GRID_TYPE==4)
+  % Closed Channel
+fntanh4=@(sig) (tanh(CS.*sig))./(tanh(CS));
+  for J=1:N+1
+    G(J+1)=L*fntanh4((J-1)/(N));
   end
 else
    disp('Error, entered grid type unknown');

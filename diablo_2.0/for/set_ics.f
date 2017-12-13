@@ -5,7 +5,7 @@ C----*|--.---------.---------.---------.---------.---------.---------.-|-------|
 
 
       INTEGER I,J,K,N
-      REAL*8 RNUM1,RNUM2,RNUM3
+      REAL*8 RNUM1,RNUM2,RNUM3,XN,ZN,A1,WNUM,LNX,LNZ
       INTEGER, DIMENSION(:), ALLOCATABLE :: seed
 
 C Initialize the random number generator
@@ -68,6 +68,106 @@ C Tanh shear layer
              U1(I,K,J)=TANH(GYF(J))
              U2(I,K,J)=0.d0
              U3(I,K,J)=0.d0
+           END DO
+         END DO
+       END DO
+      else if ((IC_TYPE.eq.4).or.(IC_TYPE.eq.5)) then
+       DO J=0,NY
+         DO K=0,NZP-1
+           DO I=0,NXM
+             U1(I,K,J)=0.d0
+             U2(I,K,J)=0.d0
+             U3(I,K,J)=0.d0
+           END DO
+         END DO
+       END DO
+      else if (IC_TYPE.eq.6) then
+C EADY/STORM/FIXED RED NOISE 
+       DO J=0,NY
+         DO K=0,NZP-1
+           DO I=0,NXM
+!             IF (J.GE.(NY-37)) THEN
+       XN=REAL(I,8)
+       LNX=REAL(NX,8)
+       ZN=REAL(RANK,8)*REAL(NZP,8)+REAL(K,8)
+       LNZ=REAL(NZ,8)
+!       A1=0.0010d0
+       A1=0.0d0
+       WNUM=1.0d0
+       U1(I,K,J)=U1(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*XN/LNX+0.796d0))
+       U1(I,K,J)=U1(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*ZN/LNZ+0.099d0))
+       WNUM=2.0d0
+       U1(I,K,J)=U1(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*XN/LNX+0.262d0))
+       U1(I,K,J)=U1(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*ZN/LNZ+0.335d0))
+       WNUM=3.0d0
+       U1(I,K,J)=U1(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*XN/LNX+0.680d0))
+       U1(I,K,J)=U1(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*ZN/LNZ+0.137d0))
+       WNUM=4.0d0
+       U1(I,K,J)=U1(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*XN/LNX+0.721d0))
+       U1(I,K,J)=U1(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*ZN/LNZ+0.107d0))
+       WNUM=5.0d0
+       U1(I,K,J)=U1(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*XN/LNX+0.654d0))
+       U1(I,K,J)=U1(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*ZN/LNZ+0.494d0))
+       WNUM=6.0d0
+       U1(I,K,J)=U1(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*XN/LNX+0.779d0))
+       U1(I,K,J)=U1(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*ZN/LNZ+0.715d0))
+       WNUM=7.0d0
+       U1(I,K,J)=U1(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*XN/LNX+0.904d0))
+       U1(I,K,J)=U1(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*ZN/LNZ+0.891d0))
+       WNUM=8.0d0
+       U1(I,K,J)=U1(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*XN/LNX+0.334d0))
+       U1(I,K,J)=U1(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*ZN/LNZ+0.699d0))
+       XN=REAL(I,8)
+       LNX=REAL(NX,8)
+       ZN=REAL(RANK,8)*REAL(NZP,8)+REAL(K,8)
+       LNZ=REAL(NZ,8)
+!
+       WNUM=1.0d0
+       U3(I,K,J)=U3(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*XN/LNX+0.796d0))
+       U3(I,K,J)=U3(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*ZN/LNZ+0.099d0))
+       WNUM=2.0d0
+       U3(I,K,J)=U3(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*XN/LNX+0.262d0))
+       U3(I,K,J)=U3(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*ZN/LNZ+0.335d0))
+       WNUM=3.0d0
+       U3(I,K,J)=U3(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*XN/LNX+0.680d0))
+       U3(I,K,J)=U3(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*ZN/LNZ+0.137d0))
+       WNUM=4.0d0
+       U3(I,K,J)=U3(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*XN/LNX+0.721d0))
+       U3(I,K,J)=U3(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*ZN/LNZ+0.107d0))
+       WNUM=5.0d0
+       U3(I,K,J)=U3(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*XN/LNX+0.654d0))
+       U3(I,K,J)=U3(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*ZN/LNZ+0.494d0))
+       WNUM=6.0d0
+       U3(I,K,J)=U3(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*XN/LNX+0.779d0))
+       U3(I,K,J)=U3(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*ZN/LNZ+0.715d0))
+       WNUM=7.0d0
+       U3(I,K,J)=U3(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*XN/LNX+0.904d0))
+       U3(I,K,J)=U3(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*ZN/LNZ+0.891d0))
+       WNUM=8.0d0
+       U3(I,K,J)=U3(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*XN/LNX+0.334d0))
+       U3(I,K,J)=U3(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*ZN/LNZ+0.699d0))
+!
+       U2(I,K,J)=0.d0
+!       ELSE
+!       U1(I,K,J)=0.d0
+!       U2(I,K,J)=0.d0
+!       U3(I,K,J)=0.d0
+!       END IF
+! multiply by tanh to remove strong shear at ML base
+       U3(I,K,J)=U3(I,K,J)*
+     &     REAL(0.5d0*TANH(REAL((GYF(J)-40.0d0)/10.0d0))+0.5d0)
+       U1(I,K,J)=U1(I,K,J)*
+     &     REAL(0.5d0*TANH(REAL((GYF(J)-40.0d0)/10.0d0))+0.5d0)
+             END DO
+         END DO
+       END DO
+       else if (IC_TYPE.eq.7) then
+       DO J=0,NY
+         DO K=0,NZP-1
+           DO I=0,NXM
+       U1(I,K,J)=0.d0
+       U2(I,K,J)=0.d0
+       U3(I,K,J)=0.d0
            END DO
          END DO
        END DO
@@ -224,7 +324,7 @@ C particular problem of interest
      &            .AND.(TH_BC_YMAX(N).EQ.1)) THEN
              DO J=1,NY
 ! Linear profile with slope corresponding to upper value
-                TH(I,K,J,N)=TH_BC_YMAX_C1(N)*GYF(J)
+                TH(I,K,J,N)=TH_BC_YMIN_C1(N)*GYF(J)
               END DO
            ELSE
              IF (RANK.EQ.0) then
@@ -243,9 +343,151 @@ C particular problem of interest
            END DO
          END DO
        END DO
+       ELSE IF (IC_TYPE.eq.4) THEN
+       DO K=0,NZP-1
+         DO I=0,NXM
+           DO J=1,NY
+             IF ((J.GE.(NY-9)).AND.(RANKY.eq.NPROCY-1)) THEN
+             TH(I,K,J,N)=TH_BC_YMIN_C1(N)*GYF(NY-9)
+             ELSE
+             TH(I,K,J,N)=TH_BC_YMIN_C1(N)*GYF(J)
+             END IF
+           END DO
+         END DO
+       END DO
+       ELSE IF (IC_TYPE.eq.5) THEN
+       DO K=0,NZP-1
+         DO I=0,NXM
+           DO J=1,NY
+             IF (N.EQ.1) THEN
+             IF ((J.GE.(NY-9)).AND.(RANKY.eq.NPROCY-1)) THEN
+             TH(I,K,J,N)=TH_BC_YMIN_C1(N)*GYF(NY-9)
+             ELSE
+             TH(I,K,J,N)=TH_BC_YMIN_C1(N)*GYF(J)
+             END IF
+             ELSE IF (N.EQ.2) THEN
+             TH(I,K,J,N)=2.0d0
+             ELSE IF ((N.EQ.3).OR.(N.EQ.4).OR.(N.EQ.5)) THEN
+             TH(I,K,J,N)=2.0d0
+             ELSE IF (N.EQ.6) THEN
+             IF (GYF(J).GE.(LY/1.5d0)) THEN
+             TH(I,K,J,N)=0.0d0
+             ELSE
+             TH(I,K,J,N)=1.0d0
+             END IF
+             END IF
+           END DO
+         END DO
+       END DO
+       ELSE IF (IC_TYPE.eq.6) THEN
+       DO K=0,NZP-1
+         DO I=0,NXM
+           DO J=1,NY
+             IF (N.EQ.1) THEN
+! TANH N2
+             IF (GYF(J).LT.30.d0) THEN
+              TH(I,K,J,N)=TH_BC_YMIN_C1(N)*GYF(J)/2.0d0-
+     & 1.5d0*TH_BC_YMIN_C1(N)*LOG(COSH((GYF(J)-20.0d0)/3.0d0))+
+     & TH_BC_YMIN_C2(N)*GYF(J)/2.0d0 +
+     & 1.5d0*TH_BC_YMIN_C2(N)*LOG(COSH((GYF(J)-20.0d0)/3.0d0))+
+     & 1.5d0*TH_BC_YMIN_C1(N)*LOG(COSH((-20.0d0)/3.0d0))-
+     & 1.5d0*TH_BC_YMIN_C2(N)*LOG(COSH((-20.0d0)/3.0d0))
+!             TH(I,K,J,N)=TH(I,K,J-1,N)+(GY(J)-GY(J-1))* 
+!     & ((TH_BC_YMIN_C2(N)-TH_BC_YMIN_C1(N))              
+!     &   *(0.5d0*TANH((GYF(J)-20.0d0)/3.0d0)+0.5d0)
+!     &   +TH_BC_YMIN_C1(N))
+             ELSE 
+              TH(I,K,J,N)=1.5d0*(TH_BC_YMIN_C3(N)-TH_BC_YMIN_C2(N))*
+     & LOG(COSH((-GYF(J)+40.0d0)/3.0d0))+0.5d0*(TH_BC_YMIN_C2(N)+
+     & TH_BC_YMIN_C3(N))*GYF(J)-
+     & 1.5d0*(TH_BC_YMIN_C3(N)-TH_BC_YMIN_C2(N))*
+     & LOG(COSH((10.0d0)/3.0d0))-0.5d0*(TH_BC_YMIN_C2(N)+
+     & TH_BC_YMIN_C3(N))*30.0d0+
+     & 15.0d0*(TH_BC_YMIN_C1(N)+TH_BC_YMIN_C2(N))+
+     & 1.5d0*(TH_BC_YMIN_C1(N)-TH_BC_YMIN_C2(N))*
+     & LOG(COSH((20.0d0)/3.0d0)/COSH(10.0d0/3.0d0))
+!             TH(I,K,J,N)=TH(I,K,J-1,N)+(GY(J)-GY(J-1))* 
+!     & ((TH_BC_YMIN_C2(N)-TH_BC_YMIN_C3(N))  
+!     &   *(0.5d0*TANH((-GYF(J)+40.0d0)/3.0d0)+0.5d0)
+!     &    +TH_BC_YMIN_C3(N))
+             END IF
+!STEP N2
+!             IF (J.LT.(NY-55)) THEN
+!             TH(I,K,J,N)=TH_BC_YMIN_C1(N)*GYF(J)
+!             ELSE IF ((J.LT.(NY-37)).AND.(J.GE.(NY-55))) THEN
+!             TH(I,K,J,N)=TH_BC_YMIN_C1(N)*GYF(NY-56)+
+!     &                   TH_BC_YMIN_C2(N)*(GYF(J)-GYF(NY-56))
+!             ELSE
+!             TH(I,K,J,N)=TH_BC_YMIN_C1(N)*GYF(NY-56)+
+!     &                   TH_BC_YMIN_C2(N)*(GYF(NY-38)-GYF(NY-56))
+!     &                   +TH_BC_YMIN_C3(N)*(GYF(J)-GYF(NY-38))
+!             END IF
+! TANH TRACER (bad)
+             ELSE IF (N.EQ.2) THEN
+             IF ((J.LT.2).and.(RANKY.eq.0)) THEN
+             TH(I,K,J,N)=2.0d0
+             ELSE IF
+     &    (((GYF(J)).LT.(30.0d0)).AND.
+     &      (((J.GT.1).AND.(RANKY.eq.0)).or.(RANKY.gt.0))) THEN
+             TH(I,K,J,N)=TH(I,K,J-1,N)+(GY(J)-GY(J-1))*
+     & ((TH_BC_YMIN_C2(N)-TH_BC_YMIN_C1(N))
+     &   *(0.5d0*TANH((GYF(J)-20.0d0)/3.0d0)+0.5d0)
+     &   +TH_BC_YMIN_C1(N))
+             ELSE
+             TH(I,K,J,N)=TH(I,K,J-1,N)+(GY(J)-GY(J-1))*
+     & ((TH_BC_YMIN_C2(N)-TH_BC_YMIN_C3(N))
+     &   *(0.5d0*TANH((-GYF(J)+40.0d0)/3.0d0)+0.5d0)
+     &    +TH_BC_YMIN_C3(N))
+             END IF
+!! END TANH TRACER
+!
+!             IF (J.LT.(NY-55)) THEN
+!             TH(I,K,J,N)=2.0d0
+!             ELSE IF ((J.LT.(NY-37)).AND.(J.GE.(NY-55))) THEN
+!             TH(I,K,J,N)=2.0d0-
+!     &        1.9d0*(GYF(J)-GYF(NY-56))/(GYF(NY-38)-GYF(NY-56))
+!             ELSE 
+!             TH(I,K,J,N)=0.1d0
+!             END IF
+             ELSE
+             TH(I,K,J,N)=0.5d0
+             END IF
+           END DO
+         END DO
+       END DO
+! MAURITANIA
+       ELSE IF (IC_TYPE.eq.7) THEN
+       DO K=0,NZP-1
+         DO I=0,NXM
+           DO J=1,NY
+!             IF (N.EQ.1) THEN
+!! stretching type 4 coeff: 1.0, NY=101
+!             IF ((J.LT.(NY-12)).AND.(J.GE.(NY-59)).AND.
+!     &           (RANKY.eq.NPROCY-1)) THEN
+!             TH(I,K,J,N)=TH_BC_YMIN_C1(N)*GYF(NY-59)+TH_BC_YMIN_C2(N)*
+!     &                   (GYF(J)-GYF(NY-59))
+!             ELSEIF ((J.GE.(NY-12)).AND.(RANKY.eq.NPROCY-1)) THEN
+!             TH(I,K,J,N)=TH(I,K,NY-13,N)
+!             ELSE
+!             TH(I,K,J,N)=TH_BC_YMIN_C1(N)*GYF(J)
+!             END IF
+!             ELSE IF (N.EQ.2) THEN
+!             TH(I,K,J,N)=2.0d0
+!             ELSE IF ((N.EQ.3).OR.(N.EQ.4).OR.(N.EQ.5)) THEN
+!             TH(I,K,J,N)=2.0d0
+!             ELSE IF (N.EQ.6) THEN
+!             IF (GYF(J).GE.(LY/1.5d0)) THEN
+!             TH(I,K,J,N)=0.0d0
+!             ELSE
+             TH(I,K,J,N)=1.0d0
+!             END IF
+!             END IF
+           END DO
+         END DO
+       END DO
        ELSE
         WRITE(*,*) 'WARNING, unsupported IC_TYPE in CREATE_FLOW'
-        END IF
+       END IF
 
 
       S1(:,:,:)=TH(:,:,:,N)
