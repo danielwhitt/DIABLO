@@ -91,8 +91,8 @@ C EADY/STORM/FIXED RED NOISE
        LNX=REAL(NX,8)
        ZN=REAL(RANK,8)*REAL(NZP,8)+REAL(K,8)
        LNZ=REAL(NZ,8)
-!       A1=0.0010d0
-       A1=0.0d0
+       A1=0.0010d0
+!       A1=0.0d0
        WNUM=1.0d0
        U1(I,K,J)=U1(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*XN/LNX+0.796d0))
        U1(I,K,J)=U1(I,K,J)+A1/WNUM*SIN(6.2832d0*(WNUM*ZN/LNZ+0.099d0))

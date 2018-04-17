@@ -10,32 +10,34 @@
 %   3 Stretch both GF and G so that GF(0) and GF(N) now correspond
 %     to the upper and lower walls.
 clear S0 zarray
-load gridgyf161.mat
+load gridgyf321.mat
 gyf = gyf(1:end-1)';
 gyf(1)=0;
-h5fn = '/glade/scratch/dwhitt/diablo_run/NW256_2_cool_rednoise_161_2x_nofrontstart3d_rerunaug52017/start.h5'
+%h5fn = '/glade/scratch/dwhitt/diablo_runoct17/NW256_WT17/W576_2/start.h5'
+h5fn = '/glade/scratch/dwhitt/diablo_runoct17/NW256_WT17/W1152_2/start.h5'
 %matfn = 'LEStest_comparebioaugust19.mat'
 matfn = 'LESini_dz05H80_workspace.mat'
 load(matfn)
 zarray = fliplr(zarray);
 %nx=1024;
-nx=256;
+nx=1152;
 %nx=128;
 %nz=1024;
 %nz=128;
-nz=256;
+nz=1152;
 % 1024x1024
 %chksize=[1024 1 8];
 % 1024x128
 %chksize=[1024 1 4];
-chksize=[256 1 16];
+chksize=[1152 1 8];
 %chksize=[128 1 8];
 nyb = 161;
+nyLES=321;
 clear Ninterp Pinterp Zinterp Dinterp
-Ninterp = repmat(interp1(zarray,S0(1:nyb),gyf),[nx 1 nz]);
-Pinterp = repmat(interp1(zarray,S0((nyb+1):(2*nyb)),gyf),[nx 1 nz]);
-Zinterp = repmat(interp1(zarray,S0((2*nyb+1):3*nyb),gyf),[nx 1 nz]);
-Dinterp = repmat(interp1(zarray,S0((3*nyb+1):4*nyb),gyf),[nx 1 nz]);
+Ninterp = repmat(interp1(zarray,S0(1:nyb),gyf,'pchip'),[nx 1 nz]);
+Pinterp = repmat(interp1(zarray,S0((nyb+1):(2*nyb)),gyf,'pchip'),[nx 1 nz]);
+Zinterp = repmat(interp1(zarray,S0((2*nyb+1):3*nyb),gyf,'pchip'),[nx 1 nz]);
+Dinterp = repmat(interp1(zarray,S0((3*nyb+1):4*nyb),gyf,'pchip'),[nx 1 nz]);
 Ninterp(:,1,:)=Ninterp(:,2,:);
 Pinterp(:,1,:)=Pinterp(:,2,:);
 Zinterp(:,1,:)=Zinterp(:,2,:);
@@ -62,10 +64,10 @@ Dvarname=['/Timestep/TH5']
 % Set the dimensions of the grid 
 
 
-%h5create(h5fn,Nvarname,[nx 161 nz],'ChunkSize',chksize,'FillValue',0.0);
-%h5create(h5fn,Pvarname,[nx 161 nz],'ChunkSize',chksize,'FillValue',0.0);
-%h5create(h5fn,Zvarname,[nx 161 nz],'ChunkSize',chksize,'FillValue',0.0);
-%h5create(h5fn,Dvarname,[nx 161 nz],'ChunkSize',chksize,'FillValue',0.0);
+%h5create(h5fn,Nvarname,[nx nyLES nz],'ChunkSize',chksize,'FillValue',0.0);
+%h5create(h5fn,Pvarname,[nx nyLES nz],'ChunkSize',chksize,'FillValue',0.0);
+%h5create(h5fn,Zvarname,[nx nyLES nz],'ChunkSize',chksize,'FillValue',0.0);
+%h5create(h5fn,Dvarname,[nx nyLES nz],'ChunkSize',chksize,'FillValue',0.0);
 
 % Now, write the grid to file
 h5write(h5fn,Nvarname,Ninterp)

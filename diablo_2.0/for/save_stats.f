@@ -6,7 +6,7 @@ C----*|--.---------.---------.---------.---------.---------.---------.-|-------|
       INCLUDE 'header'
 
       CHARACTER*35 FNAME
-      CHARACTER*10 GNAME
+      CHARACTER*20 GNAME
       LOGICAL FINAL
       integer i,j,k,n
       real*8 uc, ubulk

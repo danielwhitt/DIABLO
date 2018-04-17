@@ -260,7 +260,7 @@
          TH_BC_YMAX_VAL(N)=TH_BC_YMAX_C1(N)
       END DO
       ELSEIF (BC_TYPE.EQ.12) THEN
-! No buoyancy flux start at day 0 - small stress 1/8 of default WT17 
+! No buoyancy flux start at day 0 -  same as WT17 as published 
       AST = 2500.0d0 ! storm start time
       BST = 175300.0d0 ! storm mid time
       CST = 261700.0d0 ! storm end time
@@ -595,6 +595,25 @@
          TH_BC_YMAX_VAL(N)=TH_BC_YMAX_C1(N)
          END IF
       END DO
+      ELSEIF (BC_TYPE.EQ.21) THEN
+! REVISED MAURITANIA January 24, 2018 
+      AST = 2500.0d0 ! wind start time
+      BST = 175300.0d0 ! wind mid time
+      DST = -130.0d0 ! storm mid time
+      IF (TIME.LT.AST) THEN
+      W_BC_YMAX_VAL=0.0d0
+      ELSE IF ((TIME.GE.AST).AND.(TIME.LT.BST)) THEN
+         TGT_WBC = (TIME-AST)/(BST-AST)
+     &              *DST
+         W_BC_YMAX_VAL=TGT_WBC
+      ELSE IF ((TIME.GE.BST)) THEN
+         TGT_WBC = DST
+         W_BC_YMAX_VAL=TGT_WBC
+      ELSE
+       W_BC_YMAX_VAL=0.0d0
+      END IF
+      TH_BC_YMAX_VAL(1)=TH_BC_YMAX_C1(1)
+      U_BC_YMAX_VAL=U_BC_YMAX_C1
       ELSE
 !ANOTHER BC 
          U_BC_YMAX_VAL=U_BC_YMAX_C1

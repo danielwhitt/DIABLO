@@ -8,7 +8,56 @@
 ! S1 is available as a working variable
 
        INTEGER I,J,K,N
-
+#ifdef SOLAR
+       REAL*8 CSolar,srflx,COEF,Dangle,Hangle
+       REAL*8 e_sat,LatRad,cff1,cff2,cff,zenith,lonr,Tair,Hair
+       REAL*8 yday,RSolar,vap_p
+       REAL*8 acoef,bcoef,zeta1coef,zeta2coef
+! Type II Jerlov water, Paulson and Simpson Table 2
+       acoef=0.77d0
+       zeta1coef=1.5d0
+       bcoef=1.0d0-acoef
+       zeta2coef=14.0d0
+! g*alpha/rho*c
+       COEF=9.81d0*2.6d-4/(1025d0*3850)
+! declination angle (radians) following roms
+! yearday mid june, june 14 
+       yday=165d0
+       Dangle=23.44d0*COS((172.0d0-yday)*2.0d0*3.14159d0/365.25d0)
+       Dangle=Dangle*2.0d0*3.14159d0/360.0d0
+!
+!  Compute hour angle (radians).
+!
+      Hangle=(12.0d0-MOD(TIME/3600.0d0,24d0))*3.14159d0/12.0d0
+! Latitude
+      LatRad=18.0d0*2.0d0*3.14159d0/360.0d0
+      cff1=SIN(LatRad)*SIN(Dangle)
+      cff2=COS(LatRad)*COS(Dangle)
+      CSolar=1355.0d0
+      RSolar=CSolar*COEF
+      srflx=0.0d0
+! -17.0d0 is the longitude
+      lonr=-17d0
+      Tair=24.0d0
+! humidity fraction, relative to 1
+      Hair=0.8d0 
+! the above 2 are estimated from loading heatfluxes_dbw.mat
+      srflx=0.0d0
+      zenith=cff1+cff2*COS(Hangle-(lonr*0.017453d0)/15.0d0)
+          IF (zenith.gt.0.0d0) THEN
+            cff=(0.7859d0+0.03477d0*Tair)/                              &
+     &          (1.0d0+0.00412d0*Tair)
+            e_sat=10.0d0**cff    ! saturation vapor pressure (hPa=mbar)
+            vap_p=e_sat*Hair ! water vapor pressure (hPa=mbar)
+            srflx=0.85d0*RSolar*zenith*zenith/                          &
+     &                 ((zenith+2.7d0)*vap_p*0.001d0+                   &
+     &                  1.085d0*zenith+0.1d0)
+          END IF
+      IF (RANK.eq.0) THEN
+      WRITE(*,*),'TIME','SRFLX',RSolar,zenith,vap_p,srflx
+      END IF
+!
+#endif
 !       REAL*8 ALPHA 
 !
 !
@@ -21,7 +70,26 @@
       END IF
 #endif
 !! dynamical forcing 
-
+#ifdef SOLAR
+! add diurnal cycle penetrating shortwave radiation to RHS of TH1
+       DO J=JSTART_TH(1),JEND_TH(1)
+         DO K=0,NZP-1
+           DO I=0,NXM
+           S1(I,K,J)=srflx*acoef/zeta1coef*EXP((GYF(J)-LY)/zeta1coef)+  &
+     &               srflx*bcoef/zeta2coef*EXP((GYF(J)-LY)/zeta2coef)
+           END DO
+         END DO
+       END DO
+! Convert to Fourier space
+       CALL FFT_XZ_TO_FOURIER(S1,CS1,0,NY+1)
+       DO J=JSTART_TH(1),JEND_TH(1)
+         DO K=0,TNKZ
+           DO I=0,NXP-1
+             CFTH(I,K,J,1)=CFTH(I,K,J,1)+CS1(I,K,J)
+           END DO
+         END DO
+       END DO
+#endif
 
 ! sponges
 

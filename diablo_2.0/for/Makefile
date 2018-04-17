@@ -11,7 +11,8 @@ COMPILER = ifort
 
 # Any desired options for the compiler (e.g. -O2, -g, etc.)
 #USEROPTS = -O3 -fpp -check bounds -mcmodel medium -shared-intel -heap-arrays -g -traceback
-USEROPTS = -O3 -fpp -check bounds -fp-model precise -heap-arrays -mcmodel medium -shared-intel
+USEROPTS = -O2 -ip -fpp -check bounds -fp-model precise -heap-arrays -mcmodel medium -shared-intel
+USEROPTSH5 = -O2 -ip -fpp -check bounds -fp-model precise -heap-arrays -mcmodel medium -shared-intel
 #USEROPTS = -O3 -fpp -check bounds -mcmodel medium -shared-intel
 #USEROPTS = -O3 -fpp -check bounds
 
@@ -32,7 +33,10 @@ HDF5 = TRUE
 
 # Option to complile with the flux limited vertical advection
 FLUX = FALSE
- 
+
+# Option to compile with solar flux
+SOLAR = TRUE
+
 # Option to complile with biogeochemistry 
 BIO = TRUE
 
@@ -54,6 +58,10 @@ endif
 
 ifeq ($(BIO),TRUE)
 BIOOPTS=-DBIO
+endif
+
+ifeq ($(SOLAR),TRUE)
+SOLAROPTS=-DSOLAR
 endif
 
 ifeq ($(FLUX),TRUE)
@@ -80,7 +88,8 @@ MAIN = diablo.f
 #LINKOPTS = -L$(LINKDIR) -lrfftw -lfftw -lnetcdf
 #NETCDF_o = netcdf.o
 #else
-COMPOPTS = $(USEROPTS) $(HDF5OPTS) $(FLUXOPTS) $(BIOOPTS)
+COMPOPTS = $(USEROPTS) $(HDF5OPTS) $(FLUXOPTS) $(BIOOPTS) $(SOLAROPTS)
+COMPOPTSH5 = $(USEROPTSH5) $(HDF5OPTS) $(FLUXOPTS) $(BIOOPTS) $(SOLAROPTS)
 LINKOPTS = -L$(LINKDIR) -lfftw2xf_intel
 #NETCDF_o = no_netcdf.o
 #endif
@@ -165,12 +174,12 @@ header_mpi : grid_mpi
 
 hdf5.o : hdf5.f channel.o $(MPI) courant.o fft.o \
          header
-	$(COMPILER) $(COMPOPTS)  \
+	$(COMPILER) $(COMPOPTSH5)  \
         -c hdf5.f
 
 hdf5s.o : hdf5s.f fft.o channel.o $(MPI) courant.o \
           header
-	$(COMPILER) $(COMPOPTS) \
+	$(COMPILER) $(COMPOPTSH5) \
         -c hdf5s.f
 
 duct.o: duct.f header grid_def

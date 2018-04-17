@@ -2,11 +2,12 @@
 #rundir=/glade/scratch/dwhitt/diablo_run/W1024_10_cool_rednoise_161_3x_repeatch2
 #rundir=/glade/scratch/dwhitt/diablo_runoct17/diablo_run/NW256_2_cool_rednoise_161_2x_nofrontstart3d_rerunoct192017_ch
 #rundir=/glade/scratch/dwhitt/diablo_runoct17/diablo_run/W1024_19_cool_rednoise_161_2x_rerunoct232017_ch
-rundir=/glade/scratch/dwhitt/diablo_runoct17/diablo_run/les_convergence_tests/NW576_dz125
+#rundir=/glade/scratch/dwhitt/diablo_runoct17/NW1024_WT17/NW2304_1
+rundir=/glade/scratch/dwhitt/diablo_runoct17/Soeren/288x161_diurnalON_windDF_coolingMID_1
 #rundir=/glade/scratch/dwhitt/diablo_runoct17/diablo_run/NW256_2_cool_rednoise_161_2x_nofrontstart3d_coolingandwindWT17
 #rundir=/glade/scratch/dwhitt/diablo_runoct17/diablo_run/W1024_29_cool_rednoise_161_2x_rerunoct232017_ch_withhorizontaldiff
 #rundir=/glade/scratch/dwhitt/diablo_run/W1024_18_cool_rednoise_161_3x
-codedir=/glade/u/home/dwhitt/DIABLO/diablo_2.0/for
+codedir=/glade/u/home/dwhitt/DIABLO_dbw/DIABLO/diablo_2.0/for
 
 echo $rundir
 
@@ -63,6 +64,7 @@ module purge
 module load intel/17.0.1 mkl impi ncarcompilers/0.4.1 netcdf-mpi/4.4.1.1
 export NCAR_LIBS_NETCDF="-lhdf5_fortran ${NCAR_LIBS_NETCDF}"
 export NCAR_LIBS_MKL="-lfftw2xf_double_intel ${NCAR_LIBS_MKL}"
+#export I_MPI_SHM_LMT=shm
 # TESTING SETUP
 #module load intel/17.0.1 mkl mpt/2.16 ncarcompilers/0.4.1 netcdf-mpi/4.4.1.1
 #export NCAR_LIBS_NETCDF="-lhdf5_fortran ${NCAR_LIBS_NETCDF}"
