@@ -3,7 +3,7 @@
 #rundir=/glade/scratch/dwhitt/diablo_runoct17/diablo_run/NW256_2_cool_rednoise_161_2x_nofrontstart3d_rerunoct192017_ch
 #rundir=/glade/scratch/dwhitt/diablo_runoct17/diablo_run/W1024_19_cool_rednoise_161_2x_rerunoct232017_ch
 #rundir=/glade/scratch/dwhitt/diablo_runoct17/NW1024_WT17/NW2304_1
-rundir=/glade/scratch/dwhitt/diablo_testing/W1152_35
+rundir=/glade/scratch/dwhitt/diablo_runoct17/NW256_WT17/W1152_2_alexis
 #rundir=/glade/scratch/dwhitt/diablo_runoct17/diablo_run/NW256_2_cool_rednoise_161_2x_nofrontstart3d_coolingandwindWT17
 #rundir=/glade/scratch/dwhitt/diablo_runoct17/diablo_run/W1024_29_cool_rednoise_161_2x_rerunoct232017_ch_withhorizontaldiff
 #rundir=/glade/scratch/dwhitt/diablo_run/W1024_18_cool_rednoise_161_3x
@@ -61,21 +61,38 @@ module purge
 #export NCAR_LIBS_MKL="-lfftw2xf_double_intel ${NCAR_LIBS_MKL}"
 
 # WORKING SETUP:
-module load intel/17.0.1 mkl impi ncarcompilers/0.4.1 netcdf-mpi/4.4.1.1
-export NCAR_LIBS_NETCDF="-lhdf5_fortran ${NCAR_LIBS_NETCDF}"
-export NCAR_LIBS_MKL="-lfftw2xf_double_intel ${NCAR_LIBS_MKL}"
+#module load intel/17.0.1 mkl impi ncarcompilers/0.4.1 netcdf-mpi/4.4.1.1
+#export NCAR_LIBS_NETCDF="-lhdf5_fortran ${NCAR_LIBS_NETCDF}"
+#export NCAR_LIBS_MKL="-lfftw2xf_double_intel ${NCAR_LIBS_MKL}"
 #export I_MPI_SHM_LMT=shm
 # TESTING SETUP
 #module load intel/17.0.1 mkl mpt/2.16 ncarcompilers/0.4.1 netcdf-mpi/4.4.1.1
 #export NCAR_LIBS_NETCDF="-lhdf5_fortran ${NCAR_LIBS_NETCDF}"
 #export NCAR_LIBS_MKL="-lfftw2xf_double_intel ${NCAR_LIBS_MKL}"
+# TESTING SETUP
+module load intel/17.0.1
+# Add fftw2 to path
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/glade/u/home/alexisk/fftw2/lib
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/glade/u/home/alexisk/phdf5-mpich/lib
+# Add mpich to path
+export PATH=$PATH:"/glade/u/home/alexisk/mpich/bin"
+echo $PATH
+# Add HDF5 to path and library path
+export HDF5="/glade/u/home/alexisk/phdf5-mpich"
+export PATH=$PATH:${HDF5}/bin
+echo $PATH
+# Set MPI environment variable
+export I_MPI_SHM_LMT=shm
 
 module list
 
 # compile the code
 make clean
-
+mv Makefile Makefile_temp
+mv Makefile_alexis Makefile
 make
+mv Makefile Makefile_alexis
+mv Makefile_temp Makefile
 
 # copy the executable back to the run dir
 cp diablo $rundir/diablo

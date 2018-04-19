@@ -7,21 +7,22 @@
 
 #**********   User Defined Variables Below *********
 # Fortran 90 complier to use:
-COMPILER = ifort
+#COMPILER = ifort
 
 # Any desired options for the compiler (e.g. -O2, -g, etc.)
 #USEROPTS = -O3 -fpp -check bounds -mcmodel medium -shared-intel -heap-arrays -g -traceback
-USEROPTS = -O2 -ip -fpp -check bounds -fp-model precise -heap-arrays -mcmodel medium -shared-intel
-USEROPTSH5 = -O2 -ip -fpp -check bounds -fp-model precise -heap-arrays -mcmodel medium -shared-intel
+USEROPTS = -O3 -fpp -check bounds -fp-model precise -heap-arrays -mcmodel medium -shared-intel
 #USEROPTS = -O3 -fpp -check bounds -mcmodel medium -shared-intel
 #USEROPTS = -O3 -fpp -check bounds
 
 # Location where fftw and netcdf (optional) libraries are installed
-#LINKDIR=/glade/p/work/dwhitt/fftw2_local/lib
+LINKDIR=/glade/u/home/alexisk/fftw2/lib
+LINKDIR2=/glade/u/home/alexisk/phdf5-mpich/lib
 
 # Location where the optional netcdf include file (netcdf.inc) is installed
 #INCLUDEDIR=/glade/p/work/dwhitt/fftw2_local/include
-
+INCLUDEDIR=/glade/u/home/alexisk/fftw2/include
+INCLUDEDIR2=/glade/u/home/alexisk/phdf5-mpich/include
 # Option to compile with MPI libraries
 PARALLEL = TRUE
 
@@ -33,10 +34,7 @@ HDF5 = TRUE
 
 # Option to complile with the flux limited vertical advection
 FLUX = FALSE
-
-# Option to compile with solar flux
-SOLAR = FALSE 
-
+ 
 # Option to complile with biogeochemistry 
 BIO = TRUE
 
@@ -60,22 +58,18 @@ ifeq ($(BIO),TRUE)
 BIOOPTS=-DBIO
 endif
 
-ifeq ($(SOLAR),TRUE)
-SOLAROPTS=-DSOLAR
-endif
-
 ifeq ($(FLUX),TRUE)
 FLUXOPTS=-DFLUX
 endif
 
 ALL2ALL=1
 
-COMPILER = mpif90 
+COMPILER = mpif90
 MPI = mpi.o
 MPIF = mpi.f
 #ifeq ($(HDF5),TRUE)
 HDF5_o = hdf5.o 
-COMPILER = mpif90 
+COMPILER = h5pfc 
 HDF5OPTS=-DHDF5
 #endif
 
@@ -88,9 +82,8 @@ MAIN = diablo.f
 #LINKOPTS = -L$(LINKDIR) -lrfftw -lfftw -lnetcdf
 #NETCDF_o = netcdf.o
 #else
-COMPOPTS = $(USEROPTS) $(HDF5OPTS) $(FLUXOPTS) $(BIOOPTS) $(SOLAROPTS)
-COMPOPTSH5 = $(USEROPTSH5) $(HDF5OPTS) $(FLUXOPTS) $(BIOOPTS) $(SOLAROPTS)
-LINKOPTS = -L$(LINKDIR) -lfftw2xf_intel
+COMPOPTS = $(USEROPTS) $(HDF5OPTS) $(FLUXOPTS) $(BIOOPTS) -I$(INCLUDEDIR) -I$(INCLUDEDIR2)
+LINKOPTS = -L$(LINKDIR) -lfftw -lrfftw -L$(LINKDIR2) -lhdf5_fortran
 #NETCDF_o = no_netcdf.o
 #endif
 
@@ -174,12 +167,12 @@ header_mpi : grid_mpi
 
 hdf5.o : hdf5.f channel.o $(MPI) courant.o fft.o \
          header
-	$(COMPILER) $(COMPOPTSH5)  \
+	$(COMPILER) $(COMPOPTS)  \
         -c hdf5.f
 
 hdf5s.o : hdf5s.f fft.o channel.o $(MPI) courant.o \
           header
-	$(COMPILER) $(COMPOPTSH5) \
+	$(COMPILER) $(COMPOPTS) \
         -c hdf5s.f
 
 duct.o: duct.f header grid_def
