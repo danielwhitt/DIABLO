@@ -356,10 +356,15 @@
 ! DAN changed NU_T here (other wise should be zero)
 ! This is for the channel configuration with the bottom
 ! viewed as 'open' rather than a wall per se
+
         DO K=0,NZP-1
           DO I=0,NXM
-            NU_T(I,K,1)=NU_T(I,K,3)
-            NU_T(I,K,2)=NU_T(I,K,3)
+! DAN's default:
+!            NU_T(I,K,1)=NU_T(I,K,3)
+!            NU_T(I,K,2)=NU_T(I,K,3)
+! IRENE:
+            NU_T(I,K,1)=0.0d0
+            NU_T(I,K,2)=0.0d0
           END DO
         END DO
         DO N=1,N_TH

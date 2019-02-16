@@ -3,10 +3,20 @@
 #rundir=/glade/scratch/dwhitt/diablo_runoct17/diablo_run/NW256_2_cool_rednoise_161_2x_nofrontstart3d_rerunoct192017_ch
 #rundir=/glade/scratch/dwhitt/diablo_runoct17/diablo_run/W1024_19_cool_rednoise_161_2x_rerunoct232017_ch
 #rundir=/glade/scratch/dwhitt/diablo_runoct17/NW1024_WT17/NW2304_1
-rundir=/glade/scratch/dwhitt/diablo_testing/W1152_35
+#rundir=/glade/scratch/dwhitt/diablo_run/W1024_CS_45deg/W1024_CS_45W_18
+#rundir=/glade/scratch/dwhitt/diablo_runoct17/NW256_WT17_CS_cooling200Wpeakandwind/NW256_variablecool_rednoise_161_2x_nofrontstart3d_CS_2
 #rundir=/glade/scratch/dwhitt/diablo_runoct17/diablo_run/NW256_2_cool_rednoise_161_2x_nofrontstart3d_coolingandwindWT17
 #rundir=/glade/scratch/dwhitt/diablo_runoct17/diablo_run/W1024_29_cool_rednoise_161_2x_rerunoct232017_ch_withhorizontaldiff
 #rundir=/glade/scratch/dwhitt/diablo_run/W1024_18_cool_rednoise_161_3x
+#rundir=/glade/scratch/dwhitt/diablo_run/W1024_CS_225deg/W1024_CS_225W_18
+#rundir=/glade/scratch/dwhitt/diablo_run/IRENE/144x144x84_1_diurnalcycle2
+#rundir=/glade/scratch/dwhitt/diablo_run/IRENE/576x576x168_14
+#rundir=/glade/scratch/dwhitt/diablo_run/IRENE/288x288x84_23
+#rundir=/glade/scratch/dwhitt/diablo_run/IRENE/2304x2304x84fr_13
+rundir=/glade/scratch/dwhitt/diablo_run/IRENE/2304x2304x84big_1
+#rundir=/glade/scratch/dwhitt/diablo_run/IRENE/144x144x84_2
+#rundir=/glade/scratch/dwhitt/diablo_run/IRENE/288x288x60v2_1
+#rundir=/glade/scratch/dwhitt/diablo_run/IRENE/576x576x168_1
 codedir=/glade/u/home/dwhitt/DIABLO_dbw/DIABLO/diablo_2.0/for
 
 echo $rundir
@@ -64,10 +74,17 @@ module purge
 module load intel/17.0.1 mkl impi ncarcompilers/0.4.1 netcdf-mpi/4.4.1.1
 export NCAR_LIBS_NETCDF="-lhdf5_fortran ${NCAR_LIBS_NETCDF}"
 export NCAR_LIBS_MKL="-lfftw2xf_double_intel ${NCAR_LIBS_MKL}"
-#export I_MPI_SHM_LMT=shm
+export I_MPI_SHM_LMT=shm
+export MPI_IB_CONGESTED=1
 # TESTING SETUP
 #module load intel/17.0.1 mkl mpt/2.16 ncarcompilers/0.4.1 netcdf-mpi/4.4.1.1
 #export NCAR_LIBS_NETCDF="-lhdf5_fortran ${NCAR_LIBS_NETCDF}"
+#export NCAR_LIBS_MKL="-lfftw2xf_double_intel ${NCAR_LIBS_MKL}"
+
+# NEW SETUP
+#module purge
+#module load intel/17.0.1  mpt/2.15f mkl ncarcompilers/0.4.1 hdf5-mpi/1.8.18
+#module load intel mkl impi ncarcompilers/0.4.1 hdf5-mpi/1.8.18
 #export NCAR_LIBS_MKL="-lfftw2xf_double_intel ${NCAR_LIBS_MKL}"
 
 module list

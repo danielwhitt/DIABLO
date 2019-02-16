@@ -1,1 +1,5 @@
 *.mat
+*.o
+Makefile_dan
+Makefile_alexis
+setup_run_cheyenne_alexis

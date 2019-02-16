@@ -300,23 +300,32 @@ C End do number of passive scalars (N_TH)
 
 C Optionally, add user forcing to the right hand side
 C Here, we have U1, U2, U3, and TH in Fourier space
-       
       CALL USER_RHS_CHAN_FOURIER
-
 C If we are considering an LES, then add the subgrid scale stress:
 C Here, velocity and CFi should be in Fourier space
 C The subgrid scale stress is added to CFi:   CFi=CFi - d/dx_i tau_ij
-
-      IF (LES.AND.((.NOT.CREATE_NEW_FLOW).OR.(TIME_STEP.GT.100))) THEN
-C If we have created new flow with random perturbations, wait for a
-C spinup before applying the subgrid model for stability purposes
-C In the process, Ui/THn is converted to physical space
+      IF (LES) THEN
+      IF ((CREATE_NEW_FLOW).AND.(TIME_STEP.LT.100)) THEN
+C If the subgrid model hasn't been called, then it is necessary to 
+C convert to physical space.
+        CALL FFT_XZ_TO_PHYSICAL(CU1,U1,0,NY+1)
+        CALL FFT_XZ_TO_PHYSICAL(CU2,U2,0,NY+1)
+        CALL FFT_XZ_TO_PHYSICAL(CU3,U3,0,NY+1)
+! Transform THETA to physical space for computation of nonlinear terms
+! Here pass the first location in memory of the array for scalar n
+        DO N=1,N_TH
+          CS1(:,:,:)=CTH(:,:,:,N)
+          CALL FFT_XZ_TO_PHYSICAL(CS1,S1,0,NY+1)
+          TH(:,:,:,N)=S1(:,:,:)
+        END DO
+      ELSE
           call les_chan
 C We need to add the boundary conditions back, which have been
 C removed during the calculation of SGS model so that it doesn't feel
 C the aphysical gradients at the boundary 
-          CALL APPLY_BC_VEL_PHYS_MPI 
-      ELSE 
+          CALL APPLY_BC_VEL_PHYS_MPI
+      END IF
+      ELSE
 C If the subgrid model hasn't been called, then it is necessary to 
 C convert to physical space.
         CALL FFT_XZ_TO_PHYSICAL(CU1,U1,0,NY+1)
@@ -329,9 +338,33 @@ C convert to physical space.
           CS1(:,:,:)=CTH(:,:,:,N)
           CALL FFT_XZ_TO_PHYSICAL(CS1,S1,0,NY+1)
           TH(:,:,:,N)=S1(:,:,:)
-        END DO      
-
+        END DO
       END IF
+!      IF (LES.AND.((.NOT.CREATE_NEW_FLOW).OR.(TIME_STEP.GT.100))) THEN
+C If we have created new flow with random perturbations, wait for a
+C spinup before applying the subgrid model for stability purposes
+C In the process, Ui/THn is converted to physical space
+!          call les_chan
+C We need to add the boundary conditions back, which have been
+C removed during the calculation of SGS model so that it doesn't feel
+C the aphysical gradients at the boundary 
+!          CALL APPLY_BC_VEL_PHYS_MPI 
+!      ELSE 
+C If the subgrid model hasn't been called, then it is necessary to 
+C convert to physical space.
+!        CALL FFT_XZ_TO_PHYSICAL(CU1,U1,0,NY+1)
+!        CALL FFT_XZ_TO_PHYSICAL(CU2,U2,0,NY+1)
+!        CALL FFT_XZ_TO_PHYSICAL(CU3,U3,0,NY+1)
+! Transform THETA to physical space for computation of nonlinear terms
+! Here pass the first location in memory of the array for scalar n
+!
+!        DO N=1,N_TH
+!          CS1(:,:,:)=CTH(:,:,:,N)
+!          CALL FFT_XZ_TO_PHYSICAL(CS1,S1,0,NY+1)
+!          TH(:,:,:,N)=S1(:,:,:)
+!        END DO      
+!
+!      END IF
 
 C Compute the nonlinear products in physical space, then transform
 C back to Fourier space to compute the derivative.
@@ -2106,7 +2139,7 @@ C Dirichlet
           MATL(I,1)=0. 
           MATD(I,1)=1.
           MATU(I,1)=0.                   
-          VEC(I,1)=U_BC_YMIN_C1 
+          VEC(I,1)=U_BC_YMIN_C1
         END DO
       ELSE
 C Neumann
@@ -2120,7 +2153,7 @@ C Neumann
           MATL(I,1)=0.
           MATD(I,1)=-1.
           MATU(I,1)=1.
-          VEC(I,1)=DY(2)*U_BC_YMIN_C1
+          VEC(I,1)=DY(2)*U_BC_YMIN_VAL
         END DO
 
       END IF
@@ -2146,7 +2179,7 @@ C Dirichlet
           MATL_C(I,1)=0. 
           MATD_C(I,1)=1.
           MATU_C(I,1)=0.                   
-          VEC_C(I,1)=U_BC_YMIN_C1 
+          VEC_C(I,1)=U_BC_YMIN_C1
         END DO
       ELSE
 C Neumann
@@ -2160,7 +2193,7 @@ C Neumann
           MATL_C(I,1)=0.
           MATD_C(I,1)=-1.
           MATU_C(I,1)=1.
-          VEC_C(I,1)=DY(2)*U_BC_YMIN_C1
+          VEC_C(I,1)=DY(2)*U_BC_YMIN_VAL
         END DO
 
       END IF
@@ -2187,7 +2220,7 @@ C Dirichlet
           MATL(I,NY)=0.
           MATD(I,NY)=1.
           MATU(I,NY)=0.
-          VEC(I,NY)=U_BC_YMAX_VAL
+          VEC(I,NY)=U_BC_YMAX_C1
         END DO
       ELSE
 C Neumann
@@ -2427,7 +2460,7 @@ C Neumann
           MATL(I,1)=0.
           MATD(I,1)=-1.
           MATU(I,1)=1.
-          VEC(I,1)=DY(2)*W_BC_YMIN_C1
+          VEC(I,1)=DY(2)*W_BC_YMIN_VAL
         END DO
 
       END IF
@@ -2467,7 +2500,7 @@ C Neumann
           MATL_C(I,1)=0.
           MATD_C(I,1)=-1.
           MATU_C(I,1)=1.
-          VEC_C(I,1)=DY(2)*W_BC_YMIN_C1
+          VEC_C(I,1)=DY(2)*W_BC_YMIN_VAL
         END DO
 
       END IF
@@ -2493,7 +2526,7 @@ C Dirichlet
           MATL(I,NY)=0.
           MATD(I,NY)=1.
           MATU(I,NY)=0.
-          VEC(I,NY)=W_BC_YMAX_VAL
+          VEC(I,NY)=W_BC_YMAX_C1
         END DO
       ELSE
 C Neumann
@@ -2534,7 +2567,7 @@ C Dirichlet
           MATL_C(I,NY)=0.
           MATD_C(I,NY)=1.
           MATU_C(I,NY)=0.
-          VEC_C(I,NY)=W_BC_YMAX_VAL
+          VEC_C(I,NY)=W_BC_YMAX_C1
         END DO
       ELSE
 C Neumann
@@ -2747,8 +2780,8 @@ C Neumann
          END DO
 C Now, Apply BC to mean
          IF (RANKZ.EQ.0) THEN
-           CU1(0,0,1)=CU1(0,0,2)-DY(2)*U_BC_YMIN_C1
-           CU1(0,0,0)=CU1(0,0,1)-DY(1)*U_BC_YMIN_C1
+           CU1(0,0,1)=CU1(0,0,2)-DY(2)*U_BC_YMIN_VAL
+           CU1(0,0,0)=CU1(0,0,1)-DY(1)*U_BC_YMIN_VAL
          END IF
       ELSE
          STOP 'Error: U_BC_YMIN must be 0, or 1'
@@ -2778,8 +2811,8 @@ C Neumann
          END DO
 C Now, Apply BC to mean
          IF (RANKZ.EQ.0) THEN
-           CU3(0,0,1)=CU3(0,0,2)-DY(2)*W_BC_YMIN_C1
-           CU3(0,0,0)=CU3(0,0,1)-DY(1)*W_BC_YMIN_C1
+           CU3(0,0,1)=CU3(0,0,2)-DY(2)*W_BC_YMIN_VAL
+           CU3(0,0,0)=CU3(0,0,1)-DY(1)*W_BC_YMIN_VAL
          END IF
       ELSE
          STOP 'Error: W_BC_YMIN must be 0, or 1' 
@@ -2947,8 +2980,8 @@ C Start with zero
 C Neumann
         DO K=0,NZP-1
           DO I=0,NXM
-             U1(I,K,1)=U1(I,K,2)-DY(2)*U_BC_YMIN_C1
-             U1(I,K,0)=U1(I,K,1)-DY(1)*U_BC_YMIN_C1
+             U1(I,K,1)=U1(I,K,2)-DY(2)*U_BC_YMIN_VAL
+             U1(I,K,0)=U1(I,K,1)-DY(1)*U_BC_YMIN_VAL
            END DO
          END DO
       ELSE
@@ -2968,8 +3001,8 @@ C Start with zero
 C Neumann
         DO K=0,NZP-1
           DO I=0,NXM
-             U3(I,K,1)=U3(I,K,2)-DY(2)*W_BC_YMIN_C1
-             U3(I,K,0)=U3(I,K,1)-DY(1)*W_BC_YMIN_C1
+             U3(I,K,1)=U3(I,K,2)-DY(2)*W_BC_YMIN_VAL
+             U3(I,K,0)=U3(I,K,1)-DY(1)*W_BC_YMIN_VAL
            END DO
          END DO
       ELSE
@@ -3019,8 +3052,8 @@ C Dirichlet
 C Start with zero
         DO K=0,NZP-1
           DO I=0,NXM
-             U1(I,K,NY)=U_BC_YMAX_VAL
-             U1(I,K,NY+1)=U_BC_YMAX_VAL
+             U1(I,K,NY)=U_BC_YMAX_C1
+             U1(I,K,NY+1)=U_BC_YMAX_C1
            END DO
          END DO
       ELSE IF (U_BC_YMAX.EQ.1) THEN
@@ -3040,8 +3073,8 @@ C Dirichlet
 C Start with zero
         DO K=0,NZP-1
           DO I=0,NXM
-             U3(I,K,NY)=W_BC_YMAX_VAL
-             U3(I,K,NY+1)=W_BC_YMAX_VAL
+             U3(I,K,NY)=W_BC_YMAX_C1
+             U3(I,K,NY+1)=W_BC_YMAX_C1
            END DO
          END DO
       ELSE IF (W_BC_YMAX.EQ.1) THEN

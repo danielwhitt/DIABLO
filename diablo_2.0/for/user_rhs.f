@@ -13,13 +13,23 @@
        REAL*8 e_sat,LatRad,cff1,cff2,cff,zenith,lonr,Tair,Hair
        REAL*8 yday,RSolar,vap_p
        REAL*8 acoef,bcoef,zeta1coef,zeta2coef
+       REAL*8 analyticalflag,FRCTIME,FRCTIME2
+       REAL*8 FRCSOLAR,FRCSOLAR2
 ! Type II Jerlov water, Paulson and Simpson Table 2
        acoef=0.77d0
-       zeta1coef=1.5d0
+!       zeta1coef=1.5d0
+! SWITCH TO 5.0 here because of numerical issues with all the heat accumulating in the top grid cell
+       zeta1coef=5.0d0
        bcoef=1.0d0-acoef
        zeta2coef=14.0d0
+! IRENE: use analytical flag
+       analyticalflag=0.0d0
 ! g*alpha/rho*c
-       COEF=9.81d0*2.6d-4/(1025d0*3850)
+! buoyancy units
+!       COEF=9.81d0*2.6d-4/(1025d0*3850)
+! temperature units
+       COEF=1.0d0/(1022.8d0*4000.0d0)
+       IF (analyticalflag.ge.1.0d0) THEN
 ! declination angle (radians) following roms
 ! yearday mid june, june 14 
        yday=165d0
@@ -53,8 +63,31 @@
      &                 ((zenith+2.7d0)*vap_p*0.001d0+                   &
      &                  1.085d0*zenith+0.1d0)
           END IF
+      ELSE
+      open(201,file='ocean_frc_time.txt',
+     &  form='formatted',status='unknown')
+      open(202,file='ocean_frc_swrad.txt',
+     &  form='formatted',status='unknown')
+      READ(201,*),FRCTIME
+      READ(202,*),FRCSOLAR
+      FRCTIME2=FRCTIME
+      FRCSOLAR2=FRCSOLAR
+      DO WHILE (FRCTIME2.LT.TIME)
+      READ(201,*),FRCTIME2
+      READ(202,*),FRCSOLAR2
+      IF (FRCTIME2.GE.TIME) THEN
+      srflx=COEF*(1.0d0-(TIME-FRCTIME)/(FRCTIME2-FRCTIME))*FRCSOLAR+
+     & COEF*(1.0d0-(FRCTIME2-TIME)/(FRCTIME2-FRCTIME))*FRCSOLAR2
+      ELSE
+      FRCTIME=FRCTIME2
+      FRCSOLAR=FRCSOLAR2
+      END IF
+      END DO
+      CLOSE(201)
+      CLOSE(202)
+      END IF
       IF (RANK.eq.0) THEN
-      WRITE(*,*),'TIME','SRFLX',RSolar,zenith,vap_p,srflx
+      WRITE(*,*),'SRFLX',FRCTIME,FRCTIME2,FRCSOLAR,FRCSOLAR2,srflx
       END IF
 !
 #endif
@@ -266,11 +299,14 @@
 !       END DO
 !      END DO 
 ! Add sponge layer forcing
+#ifdef SOLAR
+! IRENE commeted out:
+!      CALL SPONGE_TH(1)
+!      CALL SPONGE_VEL
+#else
       CALL SPONGE_TH(1)
       CALL SPONGE_VEL
-
-
-
+#endif
       RETURN 
       END
 

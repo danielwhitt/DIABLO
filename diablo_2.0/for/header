@@ -118,10 +118,12 @@
 
       REAL*8  TIME
       REAL*8  U_BC_YMAX_VAL, W_BC_YMAX_VAL
+      REAL*8  U_BC_YMIN_VAL, W_BC_YMIN_VAL
       REAL*8  TH_BC_YMAX_VAL(1:N_TH)
       INTEGER TIME_STEP, RK_STEP
       COMMON /RUNTIME_VARS/ TIME, 
      &        U_BC_YMAX_VAL, W_BC_YMAX_VAL,
+     &        U_BC_YMIN_VAL, W_BC_YMIN_VAL,
      &        TH_BC_YMAX_VAL,
      &        TIME_STEP, RK_STEP, NX_T, NY_T, NZ_T
 

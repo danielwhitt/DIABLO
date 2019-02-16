@@ -957,7 +957,7 @@ C For use in the LES model in channel flow (2 periodic directions)
       END
 
       subroutine tkebudget_chan_les
-! Calculate the componet of th SGS dissipation rate 
+! Calculate the componet of the SGS dissipation rate 
 ! only includes the terms timestepped implicitly
       include 'header'
       include 'header_les'

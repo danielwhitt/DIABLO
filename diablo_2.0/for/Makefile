@@ -11,8 +11,15 @@ COMPILER = ifort
 
 # Any desired options for the compiler (e.g. -O2, -g, etc.)
 #USEROPTS = -O3 -fpp -check bounds -mcmodel medium -shared-intel -heap-arrays -g -traceback
-USEROPTS = -O2 -ip -fpp -check bounds -fp-model precise -heap-arrays -mcmodel medium -shared-intel
-USEROPTSH5 = -O2 -ip -fpp -check bounds -fp-model precise -heap-arrays -mcmodel medium -shared-intel
+# DAN's DEFAULTS
+USEROPTS = -O2 -ip -fpp -fp-model precise -heap-arrays -mcmodel medium -shared-intel
+USEROPTSH5 = -O2 -ip -fpp -fp-model precise -heap-arrays -mcmodel medium -shared-intel
+# DAN's fast options
+#USEROPTS = -O3 -ipo -fpp -ftz -fp-model fast=1 -heap-arrays -mcmodel medium
+#USEROPTSH5 = -O3 -ipo -fpp -ftz -fp-model fast=1 -heap-arrays -mcmodel medium
+# RORY's suggestion
+#USEROPTS = -xCORE-AVX2 -O2 -ipo -fpp -ftz -fp-model precise -heap-arrays -mcmodel medium
+#USEROPTSH5 = -xCORE-AVX2 -O2 -ipo -fpp -ftz -fp-model precise -heap-arrays -mcmodel medium
 #USEROPTS = -O3 -fpp -check bounds -mcmodel medium -shared-intel
 #USEROPTS = -O3 -fpp -check bounds
 
@@ -35,10 +42,10 @@ HDF5 = TRUE
 FLUX = FALSE
 
 # Option to compile with solar flux
-SOLAR = FALSE 
+SOLAR = TRUE
 
 # Option to complile with biogeochemistry 
-BIO = TRUE
+BIO = FALSE
 
 # **********    END of user definitions ************
 

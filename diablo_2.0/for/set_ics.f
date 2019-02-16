@@ -161,7 +161,8 @@ C EADY/STORM/FIXED RED NOISE
              END DO
          END DO
        END DO
-       else if (IC_TYPE.eq.7) then
+       else if ((IC_TYPE.eq.7).OR.(IC_TYPE.EQ.8)
+     &          .OR.(IC_TYPE.EQ.9)) then
        DO J=0,NY
          DO K=0,NZP-1
            DO I=0,NXM
@@ -294,7 +295,8 @@ C particular problem of interest
 
       INCLUDE 'header'
       INTEGER I,J,K,N
-
+      REAL*8 ZBOT,THSCL,ZMID,ZMPB,ZBPZMO2,THOFFSET
+!
       DO N=1,N_TH
         IF (CREATE_NEW_TH(N)) THEN
 
@@ -485,7 +487,104 @@ C particular problem of interest
            END DO
          END DO
        END DO
+! NJ shelf, IRENE 
+       ELSE IF (IC_TYPE.eq.8) THEN
+       DO K=0,NZP-1
+         DO I=0,NXM
+           DO J=1,NY
+             ZBOT=11.0d0
+             THSCL=1.5d0
+             ZMID=5.5d0
+             ZMPB=ZMID+ZBOT
+             ZBPZMO2=ZBOT+ZMID/2.0d0
+             IF ((N.EQ.1).OR.(N.EQ.2)) THEN
+             IF (N.EQ.1) THEN
+! 10.5 minus 17 (T0=17)
+               THOFFSET=-6.5d0
+             ELSE 
+! 32.2 minus 31.5 (S0=31.5)
+               THOFFSET=0.7d0
+             END IF
+             IF (GYF(J).LT.ZBPZMO2) THEN
+              TH(I,K,J,N)=TH_BC_YMIN_C1(N)*GYF(J)/2.0d0-
+     & 0.5d0*THSCL*TH_BC_YMIN_C1(N)*LOG(COSH((GYF(J)-ZBOT)/THSCL))+
+     & TH_BC_YMIN_C2(N)*GYF(J)/2.0d0 +
+     & 0.5d0*THSCL*TH_BC_YMIN_C2(N)*LOG(COSH((GYF(J)-ZBOT)/THSCL))+
+     & 0.5d0*THSCL*TH_BC_YMIN_C1(N)*LOG(COSH((-ZBOT)/THSCL))-
+     & 0.5d0*THSCL*TH_BC_YMIN_C2(N)*LOG(COSH((-ZBOT)/THSCL))
+     &   +THOFFSET        
+             ELSE 
+              TH(I,K,J,N)=0.5d0*THSCL*
+     & (TH_BC_YMIN_C3(N)-TH_BC_YMIN_C2(N))*
+     & LOG(COSH((-GYF(J)+ZMPB)/THSCL))+0.5d0*(TH_BC_YMIN_C2(N)+
+     & TH_BC_YMIN_C3(N))*GYF(J)-
+     & 0.5d0*THSCL*(TH_BC_YMIN_C3(N)-TH_BC_YMIN_C2(N))*
+     & LOG(COSH((ZMPB-ZBPZMO2)/THSCL))-0.5d0*(TH_BC_YMIN_C2(N)+
+     & TH_BC_YMIN_C3(N))*ZBPZMO2+
+     &   TH_BC_YMIN_C1(N)*ZBPZMO2/2.0d0-
+     & 0.5d0*THSCL*TH_BC_YMIN_C1(N)*LOG(COSH((ZBPZMO2-ZBOT)/THSCL))+
+     & TH_BC_YMIN_C2(N)*ZBPZMO2/2.0d0 +
+     & 0.5d0*THSCL*TH_BC_YMIN_C2(N)*LOG(COSH((ZBPZMO2-ZBOT)/THSCL))+
+     & 0.5d0*THSCL*TH_BC_YMIN_C1(N)*LOG(COSH((-ZBOT)/THSCL))-
+     & 0.5d0*THSCL*TH_BC_YMIN_C2(N)*LOG(COSH((-ZBOT)/THSCL))
+     &   +THOFFSET        
+             END IF
+             ELSE
+             TH(I,K,J,N)=0.0d0
+             END IF
+           END DO
+         END DO
+       END DO
+! NJ shelf, IRENE 
+       ELSE IF (IC_TYPE.eq.9) THEN
+       DO K=0,NZP-1
+         DO I=0,NXM
+           DO J=1,NY
+             ZBOT=21.0d0
+             THSCL=1.5d0
+             ZMID=5.5d0
+             ZMPB=ZMID+ZBOT
+             ZBPZMO2=ZBOT+ZMID/2.0d0
+             IF ((N.EQ.1).OR.(N.EQ.2)) THEN
+             IF (N.EQ.1) THEN
+! 9.5 minus 17 (T0=17)
+               THOFFSET=-7.5d0
+             ELSE
+! 32.2 minus 31.5 (S0=31.5)
+               THOFFSET=0.7d0
+             END IF
+             IF (GYF(J).LT.ZBPZMO2) THEN
+              TH(I,K,J,N)=TH_BC_YMIN_C1(N)*GYF(J)/2.0d0-
+     & 0.5d0*THSCL*TH_BC_YMIN_C1(N)*LOG(COSH((GYF(J)-ZBOT)/THSCL))+
+     & TH_BC_YMIN_C2(N)*GYF(J)/2.0d0 +
+     & 0.5d0*THSCL*TH_BC_YMIN_C2(N)*LOG(COSH((GYF(J)-ZBOT)/THSCL))+
+     & 0.5d0*THSCL*TH_BC_YMIN_C1(N)*LOG(COSH((-ZBOT)/THSCL))-
+     & 0.5d0*THSCL*TH_BC_YMIN_C2(N)*LOG(COSH((-ZBOT)/THSCL))
+     &   +THOFFSET
+             ELSE
+              TH(I,K,J,N)=0.5d0*THSCL*
+     & (TH_BC_YMIN_C3(N)-TH_BC_YMIN_C2(N))*
+     & LOG(COSH((-GYF(J)+ZMPB)/THSCL))+0.5d0*(TH_BC_YMIN_C2(N)+
+     & TH_BC_YMIN_C3(N))*GYF(J)-
+     & 0.5d0*THSCL*(TH_BC_YMIN_C3(N)-TH_BC_YMIN_C2(N))*
+     & LOG(COSH((ZMPB-ZBPZMO2)/THSCL))-0.5d0*(TH_BC_YMIN_C2(N)+
+     & TH_BC_YMIN_C3(N))*ZBPZMO2+
+     &   TH_BC_YMIN_C1(N)*ZBPZMO2/2.0d0-
+     & 0.5d0*THSCL*TH_BC_YMIN_C1(N)*LOG(COSH((ZBPZMO2-ZBOT)/THSCL))+
+     & TH_BC_YMIN_C2(N)*ZBPZMO2/2.0d0 +
+     & 0.5d0*THSCL*TH_BC_YMIN_C2(N)*LOG(COSH((ZBPZMO2-ZBOT)/THSCL))+
+     & 0.5d0*THSCL*TH_BC_YMIN_C1(N)*LOG(COSH((-ZBOT)/THSCL))-
+     & 0.5d0*THSCL*TH_BC_YMIN_C2(N)*LOG(COSH((-ZBOT)/THSCL))
+     &   +THOFFSET
+             END IF
+             ELSE
+             TH(I,K,J,N)=0.0d0
+             END IF
+           END DO
+         END DO
+       END DO
        ELSE
+        WRITE(*,*) IC_TYPE
         WRITE(*,*) 'WARNING, unsupported IC_TYPE in CREATE_FLOW'
        END IF
 

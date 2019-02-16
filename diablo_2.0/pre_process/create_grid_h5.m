@@ -82,8 +82,8 @@ gf_lower=GF(2);
 gf_upper=GF(N+1);
 
 % Now, write the grid to file
-h5create('grid.h5','/grids/y',[N+1])
-h5write ('grid.h5','/grids/y',G(2:N+2))
+h5create('gridWATKINS35.h5','/grids/y',[N+1])
+h5write ('gridWATKINS35.h5','/grids/y',G(2:N+2))
 
 % % For testing the grid stretching
 % for j=2:N-1

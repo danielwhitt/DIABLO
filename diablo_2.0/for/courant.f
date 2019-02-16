@@ -28,7 +28,7 @@
 ! Make sure that we capture the buoyancy period (for stratified flows)
       do n=1,N_TH
       if (RI(n).ne.0.d0) then
-        Nmax=sqrt(abs(RI(N)*TH_BC_YMIN_C1(N)))
+        Nmax=sqrt(abs(RI(N)*TH_BC_YMIN_C2(N)))
         dt=min(dt,0.1*2.d0*PI/Nmax)
       end if
       end do
@@ -36,7 +36,8 @@
       if ((N_TH.gt.0).and.(I_RO.NE.0)) then
 ! If we have rotating flow with scalar advection, add in thermal wind
       do n=1,N_TH
-      do j=JSTART,JEND-1
+! JSTART and JEND are BCs
+      do j=JSTART+1,JEND-1
         do k=0,NZP-1
           do i=0,NXM
             dt_x=cfl*dx(i)/abs(U1(i,k,j)-1.0d0*DRHODZ(N)*RI(N)
