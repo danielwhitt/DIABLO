@@ -554,10 +554,12 @@
 ! DAN changed NU_T here at the bottom two grid cells (other wise should be zero)
 ! This is for the channel configuration with the bottom
 ! viewed as 'open' rather than a wall per se
-            NU_T(I,K,1)=NU_T(I,K,3)
-            NU_T(I,K,2)=NU_T(I,K,3)
-            NU_T(I,K,NY)=0.d0
-            NU_T(I,K,NY+1)=0.d0
+!            NU_T(I,K,1)=NU_T(I,K,3)
+!            NU_T(I,K,2)=NU_T(I,K,3)
+            NU_T(I,K,1)=0.0d0
+            NU_T(I,K,2)=0.0d0
+            NU_T(I,K,NY)=0.0d0
+            NU_T(I,K,NY+1)=0.0d0
           END DO
         END DO
         DO N=1,N_TH

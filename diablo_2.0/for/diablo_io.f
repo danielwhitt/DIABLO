@@ -476,14 +476,14 @@ C----*|--.---------.---------.---------.---------.---------.---------.-|-------|
       call WALL_TIME(END_TIME)
       if (END_TIME-START_TIME.gt.TIME_LIMIT) THEN
          IF (RANK.EQ.0) 
-     &        write(*,*) ' STOP beacuse of wall-time hit!'
+     &        write(*,*) ' STOP because of wall-time hit!'
          FLAG=.TRUE.
       END IF
       
       INQUIRE(FILE="stop.now", EXIST=FILE_EXISTS)
       IF ( FILE_EXISTS ) THEN
          IF (RANK.EQ.0) 
-     &        write(*,*) ' STOP beacuse of stop.now file!'
+     &        write(*,*) ' STOP because of stop.now file!'
          FLAG=.TRUE.
       END IF
       
